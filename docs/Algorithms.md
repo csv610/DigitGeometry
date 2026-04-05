@@ -1,0 +1,74 @@
+# Digital Geometry Algorithms
+
+The following is a comprehensive, sorted list of algorithms implemented in the DigitGeom codebase:
+
+1.  **A\* Search** (Pathfinding)
+2.  **Active Contour Snake** (Shape Segmentation)
+3.  **Adaptive Octree** (Spatial Partitioning)
+4.  **Affine Transform** (Grid & Point Transforms)
+5.  **Anisotropic Diffusion** (Voxel Smoothing)
+6.  **Approximate Contour** (Suzuki/Douglas-Peucker)
+7.  **Area Closing/Opening** (Mathematical Morphology)
+8.  **Bilinear/Bicubic Resampling** (Image Resizing)
+9.  **Black/White Tophat** (Mathematical Morphology)
+10. **Bounding Box** (2D/3D Shape Properties)
+11. **Bresenham Line** (Rasterization)
+12. **Canny Edge Detection** (Edge Analysis)
+13. **Chamfer Distance Transform** (Distance Fields)
+14. **Connected Components** (2D/3D/Semantic Labeling)
+15. **Convex Hull** (Graham Scan)
+16. **Crofton Integral** (Geometric Measure Theory)
+17. **Curve Shortening Flow** (Shape Smoothing)
+18. **Discrete Gradient/Divergence/Laplacian** (Discrete Calculus)
+19. **Douglas-Peucker Simplification** (Polyline Smoothing)
+20. **Dual Contouring** (Isosurface Extraction)
+21. **Earth Mover's Distance** (Shape Matching)
+22. **Edge Collapse Mesh Simplification** (Mesh Processing)
+23. **Euler Characteristic/Euler Number** (Topology)
+24. **Fast Marching Method** (Distance Fields & Pathfinding)
+25. **FAST/Harris/Shi-Tomasi/SUSAN Corner Detection** (Feature Extraction)
+26. **Flood Fill** (Contour Analysis)
+27. **Fourier Descriptors** (Shape Encoding)
+28. **Fractal Dimension** (Box Counting)
+29. **Freeman Chain Code** (Contour Representation)
+30. **Geodesic Distance/Dilation/Erosion** (Mathematical Morphology)
+31. **Graph Cut Segmentation** (Min-Cut Max-Flow)
+32. **Hausdorff Distance** (Shape Comparison)
+33. **Hit-or-Miss Transform** (Mathematical Morphology)
+34. **Hu/Zernike Moments** (Shape Invariants)
+35. **Iterative Closest Point (ICP)** (Point Cloud Registration)
+36. **Jump Flooding** (Rapid Distance Transforms)
+37. **Laplacian/Gaussian/Sobel/Prewitt/Roberts Filters** (Image Processing)
+38. **Manhattan/Euclidean Distance Transforms** (Spatial Distance)
+39. **Marching Cubes/Squares/Tetrahedra** (Isosurface Extraction)
+40. **Mean/Gaussian/Principal Curvature** (Geometric Surface Analysis)
+41. **Medial Axis Transform** (2D/3D Skeletonization)
+42. **Menger Curvature** (Discrete Curvature Estimation)
+43. **Minkowski Content/Sum** (Geometric Functional Analysis)
+44. **Moore Neighbor Boundary Tracing** (Contour Tracking)
+45. **Neural Implicit SDF** (Neural Surface Representation)
+46. **Persistent Homology (H0/H1)** (Topological Data Analysis)
+47. **Quadtree/Octree/Sparse Voxel Octree** (Spatial Data Structures)
+48. **Raycasting/Raymarching** (Voxel Rendering)
+49. **Ricci Flow** (Discrete Shape Deformation & Signature)
+50. **Run-Length Encoding/Decoding** (Data Compression)
+51. **Scanline Polygon Fill** (Rasterization)
+52. **Shape Context Descriptor** (Feature Correspondence)
+53. **Skeletonization** (Zhang-Suen & Morphological Thinning)
+54. **Surface Nets** (Voxel Isosurface Extraction)
+55. **Suzuki Contour Tracing** (Boundary Extraction)
+56. **Voronoi Diagram** (Spatial Partitioning)
+57. **Voxelization** (Triangle/Surface/Point Cloud Conversion)
+58. **Watershed Transform** (Image Segmentation)
+59. **Wu Line** (Antialiased Rasterization)
+
+### Specialized & Implementation Methods:
+- **Ray-Casting Algorithm:** For the Point-in-Polygon test.
+- **Graham Scan:** For Convex Hull calculation.
+- **Box-Counting Method:** For estimating Fractal Dimension.
+- **Ring Arithmetic Method:** For DSL certification.
+- **Spatial Hashing (Nießner et al.):** For large-scale voxel lookups.
+- **Instant NGP Hash Encoding:** Multiresolution hashing for neural implicit representations.
+- **Voxel IoU (Intersection over Union):** For measuring shape similarity.
+- **Mesh Manifoldness Verification:** For checking water-tight properties.
+- **Voxel Feature Extraction:** Edges, vertices, and junctions for voxel volumes.
