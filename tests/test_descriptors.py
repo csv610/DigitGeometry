@@ -2,8 +2,8 @@
 
 import pytest
 from digital_geometry import (
-    calculate_hu_moments,
-    calculate_zernike_moments,
+    compute_hu_moments,
+    compute_zernike_moments,
     fourier_descriptors,
     shape_context_descriptor,
     generalized_hough_transform,
@@ -11,18 +11,18 @@ from digital_geometry import (
 )
 
 
-def test_calculate_hu_moments():
+def test_compute_hu_moments():
     grid1 = [[0, 1, 1, 0], [0, 1, 1, 0], [0, 0, 0, 0]]
-    hu1 = calculate_hu_moments(grid1)
+    hu1 = compute_hu_moments(grid1)
     assert len(hu1) == 7
 
 
-def test_calculate_zernike_moments():
+def test_compute_zernike_moments():
     grid = [[0 for _ in range(10)] for _ in range(10)]
     for y in range(3, 7):
         for x in range(3, 7):
             grid[y][x] = 1
-    moments = calculate_zernike_moments(grid, radius=5.0, degree=2)
+    moments = compute_zernike_moments(grid, radius=5.0, degree=2)
     assert moments[0] > 0
 
 

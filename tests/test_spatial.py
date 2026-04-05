@@ -25,18 +25,21 @@ def test_octree():
 
 
 def test_jump_flooding_dt():
-    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    import numpy as np
+    grid = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=np.uint8)
     dist = jump_flooding_dt(grid)
-    assert dist[1][1] == 0.0
+    assert dist[1, 1] == 0.0
 
 
 def test_compute_sdf():
-    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    import numpy as np
+    grid = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]], dtype=np.uint8)
     sdf = compute_sdf(grid)
-    assert sdf[1][1] <= 0
+    assert sdf[1, 1] <= 0
 
 
 def test_compute_reeb_graph():
-    grid = [[0, 0, 0], [0, 10, 0], [0, 0, 0]]
+    import numpy as np
+    grid = np.array([[0, 0, 0], [0, 10, 0], [0, 0, 0]], dtype=np.float32)
     graph = compute_reeb_graph(grid)
     assert "nodes" in graph

@@ -6,12 +6,12 @@ from digital_geometry import (
     euclidean_distance_transform,
     a_star,
     voronoi_diagram,
-    calculate_topology,
+    compute_topology,
     compute_h0_persistence,
     jump_flooding_dt,
     fractal_dimension,
     marching_tetrahedra,
-    calculate_zernike_moments,
+    compute_zernike_moments,
     hausdorff_distance,
     iterative_closest_point,
     medial_axis_transform
@@ -45,7 +45,7 @@ def run_benchmarks():
     benchmark("Voronoi (100x100, 10 seeds)", voronoi_diagram, 100, 100, seeds)
     
     # 5. Topology (100x100)
-    benchmark("Topology (100x100)", calculate_topology, grid)
+    benchmark("Topology (100x100)", compute_topology, grid)
     
     # 6. Persistent Homology (50x50)
     size_ph = 50
@@ -58,7 +58,7 @@ def run_benchmarks():
     benchmark("Marching Tetrahedra (20^3)", marching_tetrahedra, vol)
 
     # 8. Research Grade Tools
-    benchmark("Zernike Moments (degree 4)", calculate_zernike_moments, grid, 50.0)
+    benchmark("Zernike Moments (degree 4)", compute_zernike_moments, grid, 50.0)
     
     set1 = [(random.random()*100, random.random()*100) for _ in range(100)]
     set2 = [(random.random()*100, random.random()*100) for _ in range(100)]

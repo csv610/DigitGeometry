@@ -4,7 +4,7 @@ import math
 import cmath
 
 
-def calculate_hu_moments(grid):
+def compute_hu_moments(grid):
     """Compute Hu's 7 invariant moments."""
     height = len(grid)
     width = len(grid[0])
@@ -58,7 +58,7 @@ def calculate_hu_moments(grid):
     return [abs(x) for x in hu]
 
 
-def calculate_zernike_moments(grid, radius, degree=4):
+def compute_zernike_moments(grid, radius, degree=4):
     """Compute Zernike moments."""
     height = len(grid)
     width = len(grid[0])
@@ -109,25 +109,18 @@ def zernike_polynomial(n, m, rho, theta):
 
 
 def fourier_descriptors(points, n_descriptors=10):
-    """Compute Fourier descriptors for a closed contour."""
+    """Compute Fourier descriptors for a closed contour (vectorized)."""
+    import numpy as np
     if len(points) < 2:
         return []
 
+    complex_points = np.array([complex(x, y) for x, y in points])
+    dft = np.fft.fft(complex_points)
+    
     n = len(points)
-    complex_points = [complex(x, y) for x, y in points]
-
-    dft = []
-    for k in range(n):
-        sum_val = sum(
-            complex_points[m] * cmath.exp(-2j * math.pi * k * m / n) for m in range(n)
-        )
-        dft.append(sum_val)
-
-    descriptors = []
-    for k in range(1, min(n_descriptors + 1, n)):
-        descriptors.append(abs(dft[k]))
-
-    return descriptors
+    descriptors = np.abs(dft[1:min(n_descriptors + 1, n)])
+    
+    return descriptors.tolist()
 
 
 def shape_context_descriptor(points, n_bins_r=5, n_bins_theta=12):

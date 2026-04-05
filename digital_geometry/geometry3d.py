@@ -3,7 +3,7 @@
 import math
 
 
-def estimate_surface_normals(grid, voxel_size=1.0):
+def compute_surface_normals(grid, voxel_size=1.0):
     """Estimate surface normals from a depth/height grid."""
     height = len(grid)
     width = len(grid[0])
@@ -92,7 +92,7 @@ def fit_plane_least_squares(points):
     return (a, b, c, d)
 
 
-def estimate_curvature_2d(grid):
+def compute_curvature_2d(grid):
     """Estimate mean curvature on a grid."""
     height = len(grid)
     width = len(grid[0])

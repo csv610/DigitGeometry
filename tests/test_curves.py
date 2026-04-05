@@ -6,7 +6,7 @@ from digital_geometry import (
     convex_hull,
     douglas_peucker,
     is_digitally_straight,
-    estimate_tangents,
+    compute_tangents,
     compute_curvature,
     certify_dsls,
     dsls_Arithmetical_Distance,
@@ -36,9 +36,9 @@ def test_is_digitally_straight():
     assert is_digitally_straight(line)
 
 
-def test_estimate_tangents():
+def test_compute_tangents():
     points = [(0, 0), (1, 0), (2, 0), (3, 0)]
-    tangents = estimate_tangents(points, k=1)
+    tangents = compute_tangents(points, k=1)
     assert len(tangents) == 4
 
 

@@ -3,7 +3,7 @@
 import pytest
 from digital_geometry import (
     count_connected_components,
-    calculate_topology,
+    compute_topology,
     compute_h0_persistence,
     compute_h1_persistence,
     compute_surface_curvatures,
@@ -16,9 +16,9 @@ def test_count_connected_components():
     assert count_connected_components(grid) == 0
 
 
-def test_calculate_topology():
+def test_compute_topology():
     grid = [[0, 0], [0, 0]]
-    topo = calculate_topology(grid)
+    topo = compute_topology(grid)
     assert topo["b0"] == 0
     assert topo["b1"] == 0
 

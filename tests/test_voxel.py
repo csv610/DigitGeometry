@@ -1,6 +1,7 @@
 """Tests for voxel module."""
 
 import pytest
+import numpy as np
 from digital_geometry.voxel import (
     get_neighbors_6,
     get_neighbors_18,
@@ -70,27 +71,37 @@ def test_get_neighbors_26():
 
 
 def test_classify_voxel_grid():
-    volume = [[[1, 1], [1, 1]], [[1, 1], [1, 1]]]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     result = classify_voxel_grid(volume)
-    assert len(result) == 2
+    assert result.shape == (2, 2, 2)
+    assert result[0, 0, 0] == "boundary"
 
 
 def test_find_voxel_borders():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     borders = find_voxel_borders(volume)
     assert len(borders) > 0
+    assert isinstance(borders, np.ndarray)
 
 
 def test_find_voxel_edges():
-    volume = [[[1, 1], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
+    volume[0, 0, 1] = 1
+    volume[0, 1, 0] = 1
     edges = find_voxel_edges(volume)
-    assert isinstance(edges, list)
+    assert isinstance(edges, np.ndarray)
 
 
 def test_find_voxel_vertices():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
+    volume[0, 0, 1] = 1
+    volume[0, 1, 0] = 1
+    volume[1, 0, 0] = 1
     vertices = find_voxel_vertices(volume)
-    assert isinstance(vertices, list)
+    assert isinstance(vertices, np.ndarray)
 
 
 def test_voxelize_triangle_mesh():
@@ -110,9 +121,9 @@ def test_voxelize_surface_mesh():
 
 
 def test_surface_nets():
-    volume = [[[0] * 4 for _ in range(4)] for _ in range(4)]
-    volume[1][1][1] = 1
-    volume[2][2][2] = 1
+    volume = np.zeros((4, 4, 4), dtype=np.uint8)
+    volume[1, 1, 1] = 1
+    volume[2, 2, 2] = 1
     vertices, faces = surface_nets(volume)
     assert isinstance(vertices, list)
 
@@ -120,8 +131,8 @@ def test_surface_nets():
 def test_voxel_carving():
     vertices = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
     triangles = [(0, 1, 2)]
-    silhouettes = [[0, 0, 0, 0], [0, 1, 1, 0], [0, 1, 1, 0], [0, 0, 0, 0]]
-    result = voxel_carving(vertices, triangles, [silhouettes], resolution=8)
+    silhouettes = [np.array([[0, 0, 0, 0], [0, 1, 1, 0], [0, 1, 1, 0], [0, 0, 0, 0]], dtype=np.uint8)]
+    result = voxel_carving(vertices, triangles, silhouettes, resolution=8)
     assert result is not None
 
 
@@ -134,7 +145,7 @@ def test_ray_voxel_intersection():
 
 
 def test_ray_cast_volume():
-    volume = [[[1] * 4 for _ in range(4)] for _ in range(4)]
+    volume = np.ones((4, 4, 4), dtype=np.uint8)
     origin = (0, 0, 0)
     direction = (1, 1, 1)
     result = ray_cast_volume(origin, direction, volume)
@@ -142,80 +153,91 @@ def test_ray_cast_volume():
 
 
 def test_minkowski_sum_voxel():
-    vol1 = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
-    vol2 = [[[0, 1], [0, 0]], [[0, 0], [0, 0]]]
+    vol1 = np.zeros((2, 2, 2), dtype=np.uint8)
+    vol1[0, 0, 0] = 1
+    vol2 = np.zeros((2, 2, 2), dtype=np.uint8)
+    vol2[0, 0, 1] = 1
     result = minkowski_sum_voxel(vol1, vol2)
-    assert len(result) > 0
+    assert result.shape == (3, 3, 3)
 
 
 def test_merge_voxels():
-    volume = [[[1] * 4 for _ in range(4)] for _ in range(4)]
+    volume = np.ones((4, 4, 4), dtype=np.uint8)
     merged = merge_voxels(volume, level=2)
-    assert len(merged) == 2
+    assert merged.shape == (2, 2, 2)
 
 
 def test_voxel_euler_number():
-    volume = [[[1] * 2 for _ in range(2)] for _ in range(2)]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     euler = voxel_euler_number(volume)
-    assert isinstance(euler, (int, float))
+    assert isinstance(euler, (int, np.integer))
 
 
 def test_voxel_connectivity_count():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     count = voxel_connectivity_count(volume)
     assert count == 1
 
 
 def test_voxel_sdf_3d():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     sdf = voxel_sdf_3d(volume)
-    assert len(sdf) == 2
+    assert sdf.shape == (2, 2, 2)
 
 
 def test_skeleton_3d_medial():
-    volume = [[[1, 1], [1, 1]], [[1, 1], [1, 1]]]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     skeleton = skeleton_3d_medial(volume)
-    assert len(skeleton) == 2
+    assert skeleton.shape == (2, 2, 2)
 
 
 def test_extract_boundary_faces():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     faces = extract_boundary_faces(volume)
     assert isinstance(faces, list)
 
 
 def test_voxel_dilate_3d():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     dilated = voxel_dilate_3d(volume, iterations=1)
-    assert len(dilated) == 2
+    assert dilated.shape == (2, 2, 2)
 
 
 def test_voxel_erode_3d():
-    volume = [[[1, 1], [1, 1]], [[1, 1], [1, 1]]]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     eroded = voxel_erode_3d(volume, iterations=1)
-    assert len(eroded) == 2
+    assert eroded.shape == (2, 2, 2)
 
 
 def test_fill_voxel_holes():
-    volume = [[[1, 1], [1, 1]], [[1, 1], [1, 1]]]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     filled = fill_voxel_holes(volume)
-    assert len(filled) == 2
+    assert filled.shape == (2, 2, 2)
 
 
 def test_compute_voxel_moments():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     moments = compute_voxel_moments(volume)
     assert "m000" in moments
 
 
 def test_extract_3d_contours():
-    volume = [[[0, 0], [0, 1]], [[0, 1], [1, 1]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 1, 1] = 1
+    volume[1, 0, 1] = 1
+    volume[1, 1, 1] = 1
     contours = extract_3d_contours(volume)
     assert isinstance(contours, list)
 
 
 def test_voxel_to_octree():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     octree = voxel_to_octree(volume, min_size=1)
     assert octree is not None
 
@@ -223,13 +245,14 @@ def test_voxel_to_octree():
 def test_octree_to_voxel():
     octree = {"leaf": True, "x": 0, "y": 0, "z": 0, "size": 2}
     volume = octree_to_voxel(octree, resolution=4)
-    assert len(volume) == 4
+    assert volume.shape == (4, 4, 4)
 
 
 def test_voxel_contour_3d():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     contour = voxel_contour_3d(volume)
-    assert len(contour) == 2
+    assert contour.shape == (2, 2, 2)
 
 
 def test_sparse_voxel_octree():
@@ -239,37 +262,41 @@ def test_sparse_voxel_octree():
 
 
 def test_build_sparse_voxel_octree():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     octree = build_sparse_voxel_octree(volume)
     assert octree is not None
 
 
 def test_voxel_neighbor_lookup():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     lookup = VoxelNeighborLookup(volume)
     assert lookup.has_voxel(0, 0, 0)
 
 
 def test_voxel_coloring():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     colors, count = voxel_coloring(volume)
     assert count >= 1
 
 
 def test_voxel_separated():
-    volume = [[[1, 0], [0, 0]], [[0, 0], [0, 0]]]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     separated = voxel_separated(volume)
     assert isinstance(separated, bool)
 
 
 def test_cut_voxel_by_plane():
-    volume = [[[1, 1], [1, 1]], [[1, 1], [1, 1]]]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     result = cut_voxel_by_plane(volume, (1, 0, 0), 0)
-    assert len(result) == 2
+    assert result.shape == (2, 2, 2)
 
 
 def test_volume_raymarch():
-    volume = [[[1] * 4 for _ in range(4)] for _ in range(4)]
+    volume = np.ones((4, 4, 4), dtype=np.uint8)
     origin = (0, 0, 0)
     direction = (1, 1, 1)
     hit, t = volume_raymarch(volume, origin, direction)
@@ -277,7 +304,7 @@ def test_volume_raymarch():
 
 
 def test_volume_raymarch_with_normal():
-    volume = [[[1] * 4 for _ in range(4)] for _ in range(4)]
+    volume = np.ones((4, 4, 4), dtype=np.uint8)
     origin = (0, 0, 0)
     direction = (1, 1, 1)
     hit, normal = volume_raymarch_with_normal(volume, origin, direction)
@@ -285,74 +312,77 @@ def test_volume_raymarch_with_normal():
 
 
 def test_smooth_isosurface():
-    volume = [[[0.0, 1.0], [1.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]]
+    volume = np.array([[[0.0, 1.0], [1.0, 0.0]], [[1.0, 0.0], [0.0, 1.0]]], dtype=np.float32)
     smoothed = smooth_isosurface(volume, iterations=1)
-    assert len(smoothed) == 2
+    assert smoothed.shape == (2, 2, 2)
 
 
 def test_voxel_gradient_normals():
-    volume = [[[0, 1], [1, 0]], [[1, 0], [0, 1]]]
+    volume = np.array([[[0, 1], [1, 0]], [[1, 0], [0, 1]]], dtype=np.float32)
     normals = voxel_gradient_normals(volume)
-    assert len(normals) == 2
+    assert normals.shape == (2, 2, 2, 3)
 
 
 def test_dual_contouring():
-    volume = [[[0, 1, 0], [1, 1, 1], [0, 1, 0]] for _ in range(3)]
+    volume = np.zeros((3, 3, 3), dtype=np.uint8)
+    volume[1, 1, 1] = 1
     vertices, faces = dual_contouring(volume)
     assert isinstance(vertices, list)
 
 
 def test_voxel_epitome():
     epit = VoxelEpitome(epitome_size=4)
-    volume = [[[1] * 4 for _ in range(4)] for _ in range(4)]
+    volume = np.ones((4, 4, 4), dtype=np.uint8)
     epit.fill_from_voxel_grid(volume, 0, 0, 0)
     dense = epit.to_dense()
-    assert len(dense) == 4
+    assert dense.shape == (4, 4, 4)
 
 
 def test_build_voxel_epitomes():
-    volume = [[[1] * 4 for _ in range(4)] for _ in range(4)]
+    volume = np.ones((4, 4, 4), dtype=np.uint8)
     epitomes = build_voxel_epitomes(volume)
     assert len(epitomes) > 0
 
 
 def test_voxel_pyramid():
-    volume = [[[1] * 8 for _ in range(8)] for _ in range(8)]
+    volume = np.ones((8, 8, 8), dtype=np.uint8)
     pyramid = voxel_pyramid(volume, levels=2)
     assert len(pyramid) == 2
 
 
 def test_is_voxel_surface_manifold():
-    volume = [[[1, 1], [1, 1]] for _ in range(2)]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     is_manifold = is_voxel_surface_manifold(volume)
     assert isinstance(is_manifold, bool)
 
 
 def test_voxel_junction_count():
-    volume = [[[1, 1], [1, 1]] for _ in range(2)]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     count = voxel_junction_count(volume)
     assert count >= 0
 
 
 def test_voxel_endpoint_count():
-    volume = [[[1, 0], [0, 0]] for _ in range(2)]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     count = voxel_endpoint_count(volume)
     assert count >= 0
 
 
 def test_euler_operators():
-    volume = [[[0, 0], [0, 0]] for _ in range(2)]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
     result = EulerOperators.make_voxel(volume, 0, 0, 0)
-    assert result[0][0][0] == 1
+    assert result[0, 0, 0] == 1
 
 
 def test_detect_3d_corners():
-    volume = [[[1, 0], [0, 0]] for _ in range(2)]
+    volume = np.zeros((2, 2, 2), dtype=np.uint8)
+    volume[0, 0, 0] = 1
     corners = detect_3d_corners(volume)
     assert isinstance(corners, list)
 
 
 def test_detect_3d_junctions():
-    volume = [[[1, 1], [1, 1]] for _ in range(2)]
+    volume = np.ones((2, 2, 2), dtype=np.uint8)
     junctions = detect_3d_junctions(volume)
     assert junctions >= 0

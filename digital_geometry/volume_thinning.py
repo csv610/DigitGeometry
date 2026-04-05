@@ -163,32 +163,32 @@ def morphological_skeleton(grid):
 
 def skeleton_3d_medial(volume):
     """Extract 3D skeleton using medial axis approach."""
-    from digital_geometry.voxel import voxel_sdf_3d
-
-    sdf = voxel_sdf_3d(volume)
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
+    from digital_geometry.voxel_sdf import voxel_sdf_3d
+    import numpy as np
     from digital_geometry.voxel_core import NEIGHBOR_6
 
-    skeleton = [[[0] * width for _ in range(height)] for _ in range(depth)]
+    volume = np.asarray(volume)
+    sdf = voxel_sdf_3d(volume)
+    depth, height, width = volume.shape
+
+    skeleton = np.zeros_like(volume)
 
     for z in range(1, depth - 1):
         for y in range(1, height - 1):
             for x in range(1, width - 1):
-                if volume[z][y][x] == 1:
+                if volume[z, y, x] == 1:
                     neighbors = []
                     for dx, dy, dz in NEIGHBOR_6:
                         nx, ny, nz = x + dx, y + dy, z + dz
                         if 0 <= nx < width and 0 <= ny < height and 0 <= nz < depth:
-                            neighbors.append(sdf[nz][ny][nx])
+                            neighbors.append(sdf[nz, ny, nx])
 
-                    center_dist = sdf[z][y][x]
+                    center_dist = sdf[z, y, x]
+                    # Local minima of distance field (most negative inside)
                     is_min = all(center_dist <= n for n in neighbors)
 
                     if is_min:
-                        skeleton[z][y][x] = 1
+                        skeleton[z, y, x] = 1
 
     return skeleton
 
@@ -230,7 +230,7 @@ def medial_axis_transform_3d(volume):
 
     while True:
         eroded = voxel_erode_iteration(temp)
-        
+
         # Identify current boundary
         boundary = []
         for z in range(depth):
@@ -240,13 +240,20 @@ def medial_axis_transform_3d(volume):
                         is_boundary = False
                         for dx, dy, dz in NEIGHBOR_6:
                             nx, ny, nz = x + dx, y + dy, z + dz
-                            if not (0 <= nx < width and 0 <= ny < height and 0 <= nz < depth) or temp[nz][ny][nx] == 0:
+                            if (
+                                not (
+                                    0 <= nx < width
+                                    and 0 <= ny < height
+                                    and 0 <= nz < depth
+                                )
+                                or temp[nz][ny][nx] == 0
+                            ):
                                 is_boundary = True
                                 break
                         if is_boundary:
                             boundary.append((x, y, z))
 
-        if sum(sum(sum(p) for p in row) for row in eroded) == 0:
+        if sum(sum(sum(row) for row in layer) for layer in eroded) == 0:
             # All current voxels are medial axis if they can't be eroded further
             for z in range(depth):
                 for y in range(height):
@@ -254,7 +261,7 @@ def medial_axis_transform_3d(volume):
                         if temp[z][y][x] == 1:
                             result[z][y][x] = volume[z][y][x]
             break
-            
+
         for x, y, z in boundary:
             result[z][y][x] = volume[z][y][x]
         temp = eroded

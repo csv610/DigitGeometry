@@ -201,12 +201,12 @@ def fast_corner(grid, threshold=10):
 
 def structure_tensor(grid, window=3):
     """Compute structure tensor for each pixel."""
-    from digital_geometry.edge import sobel
+    from digital_geometry.utils import discrete_gradient
 
     height = len(grid)
     width = len(grid[0])
 
-    Ix, Iy = sobel(grid), sobel(grid)
+    Ix, Iy = discrete_gradient(grid)
 
     Ixx = [[Ix[y][x] ** 2 for x in range(width)] for y in range(height)]
     Iyy = [[Iy[y][x] ** 2 for x in range(width)] for y in range(height)]

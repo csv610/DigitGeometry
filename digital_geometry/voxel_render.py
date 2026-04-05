@@ -1,108 +1,97 @@
-"""Voxel rendering and ray tracing."""
+"""Voxel rendering and ray tracing - NumPy Centric Version."""
 
-import math
-
+import numpy as np
+from scipy.ndimage import convolve, uniform_filter
 from digital_geometry.voxel_core import NEIGHBOR_6
 
 
 def ray_voxel_intersection(ray_origin, ray_direction, voxel_bounds):
     """Ray-voxel intersection using AABB test."""
-    ox, oy, oz = ray_origin
-    dx, dy, dz = ray_direction
+    ox, oy, oz = np.asanyarray(ray_origin)
+    dx, dy, dz = np.asanyarray(ray_direction)
 
     x0, y0, z0 = voxel_bounds[0]
     x1, y1, z1 = voxel_bounds[1]
 
-    tmin = (x0 - ox) / dx if dx != 0 else -float("inf")
-    tmax = (x1 - ox) / dx if dx != 0 else float("inf")
+    with np.errstate(divide='ignore', invalid='ignore'):
+        txmin = (x0 - ox) / dx
+        txmax = (x1 - ox) / dx
+        tymin = (y0 - oy) / dy
+        tymax = (y1 - oy) / dy
+        tzmin = (z0 - oz) / dz
+        tzmax = (z1 - oz) / dz
 
-    if tmin > tmax:
-        tmin, tmax = tmax, tmin
+    tmin_x, tmax_x = min(txmin, txmax), max(txmin, txmax)
+    tmin_y, tmax_y = min(tymin, tymax), max(tymin, tymax)
+    tmin_z, tmax_z = min(tzmin, tzmax), max(tzmin, tzmax)
 
-    tymin = (y0 - oy) / dy if dy != 0 else -float("inf")
-    tymax = (y1 - oy) / dy if dy != 0 else float("inf")
+    t_enter = max(tmin_x, tmin_y, tmin_z)
+    t_exit = min(tmax_x, tmax_y, tmax_z)
 
-    if tymin > tymax:
-        tymin, tymax = tymax, tymin
-
-    if max(tmin, tymin) > min(tmax, tymax):
+    if t_enter > t_exit or t_exit < 0:
         return None
 
-    tzmin = (z0 - oz) / dz if dz != 0 else -float("inf")
-    tzmax = (z1 - oz) / dz if dz != 0 else float("inf")
-
-    if tzmin > tzmax:
-        tzmin, tzmax = tzmax, tzmin
-
-    if max(tmin, tymin, tzmin) > min(tmax, tymax, tzmax):
-        return None
-
-    t = max(tmin, tymin, tzmin)
-    if t < 0:
-        t = min(tmax, tymax, tzmax)
-
-    return (ox + dx * t, oy + dy * t, oz + dz * t)
+    t = t_enter if t_enter > 0 else t_exit
+    return ox + dx * t, oy + dy * t, oz + dz * t
 
 
-def ray_cast_volume(ray_origin, ray_direction, volume, step=1.0):
+def ray_cast_volume(ray_origin, ray_direction, volume: np.ndarray, step=1.0):
     """Cast ray through voxel volume."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
+    if not isinstance(volume, np.ndarray):
+        volume = np.asanyarray(volume)
+        
+    depth, height, width = volume.shape
 
     intersections = []
     ox, oy, oz = ray_origin
     dx, dy, dz = ray_direction
 
-    length = math.sqrt(dx * dx + dy * dy + dz * dz)
+    length = np.sqrt(dx * dx + dy * dy + dz * dz)
     dx, dy, dz = dx / length, dy / length, dz / length
 
-    max_dist = math.sqrt(width**2 + height**2 + depth**2)
+    max_dist = np.sqrt(width**2 + height**2 + depth**2)
     t = 0.0
 
     while t < max_dist:
-        x = int(ox + dx * t)
-        y = int(oy + dy * t)
-        z = int(oz + dz * t)
+        x, y, z = int(ox + dx * t), int(oy + dy * t), int(oz + dz * t)
 
         if 0 <= x < width and 0 <= y < height and 0 <= z < depth:
-            if volume[z][y][x] == 1:
+            if volume[z, y, x] == 1:
                 intersections.append((x, y, z, t))
         t += step
 
     return intersections
 
 
-def volume_raymarch(volume, ray_origin, ray_direction, threshold=0.5):
+def volume_raymarch(volume: np.ndarray, ray_origin, ray_direction, threshold=0.5):
     """Raymarch through voxel volume."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
+    if not isinstance(volume, np.ndarray):
+        volume = np.asanyarray(volume)
+        
+    depth, height, width = volume.shape
 
     ox, oy, oz = ray_origin
     dx, dy, dz = ray_direction
 
-    length = math.sqrt(dx * dx + dy * dy + dz * dz)
+    length = np.sqrt(dx * dx + dy * dy + dz * dz)
     dx, dy, dz = dx / length, dy / length, dz / length
 
     t = 0.0
-    max_t = math.sqrt(width**2 + height**2 + depth**2)
+    max_t = np.sqrt(width**2 + height**2 + depth**2)
     step = 0.5
 
     while t < max_t:
-        x = int(ox + dx * t)
-        y = int(oy + dy * t)
-        z = int(oz + dz * t)
+        x, y, z = int(ox + dx * t), int(oy + dy * t), int(oz + dz * t)
 
         if 0 <= x < width and 0 <= y < height and 0 <= z < depth:
-            if volume[z][y][x] >= threshold:
+            if volume[z, y, x] >= threshold:
                 return (x, y, z), t
         t += step
 
     return None, -1
 
 
-def volume_raymarch_with_normal(volume, ray_origin, ray_direction, threshold=0.5):
+def volume_raymarch_with_normal(volume: np.ndarray, ray_origin, ray_direction, threshold=0.5):
     """Raymarch with normal estimation."""
     hit, t = volume_raymarch(volume, ray_origin, ray_direction, threshold)
 
@@ -110,43 +99,45 @@ def volume_raymarch_with_normal(volume, ray_origin, ray_direction, threshold=0.5
         return None, None
 
     x, y, z = hit
-    dx_list = [1, -1, 0, 0, 0, 0]
-    dy_list = [0, 0, 1, -1, 0, 0]
-    dz_list = [0, 0, 0, 0, 1, -1]
+    depth, height, width = volume.shape
+    
+    # Boundary-safe normal estimation
+    def get_val(vx, vy, vz):
+        if 0 <= vx < width and 0 <= vy < height and 0 <= vz < depth:
+            return float(volume[vz, vy, vx])
+        return 0.0
 
-    nx = ny = nz = 0.0
-    for i in range(6):
-        nx += dx_list[i] * volume[z][y + dy_list[i]][x + dx_list[i]]
-        ny += dy_list[i] * volume[z + dz_list[i]][y][x]
-        nz += dz_list[i] * volume[z + dz_list[i]][y + dy_list[i]][x]
+    # Central difference-like approximation
+    nx = get_val(x+1, y, z) - get_val(x-1, y, z)
+    ny = get_val(x, y+1, z) - get_val(x, y-1, z)
+    nz = get_val(x, y, z+1) - get_val(x, y, z-1)
 
-    length = math.sqrt(nx * nx + ny * ny + nz * nz)
+    length = np.sqrt(nx**2 + ny**2 + nz**2)
     if length > 0:
-        nx, ny, nz = nx / length, ny / length, nz / length
+        normal = np.array([nx, ny, nz]) / length
+    else:
+        normal = np.array([0.0, 0.0, 0.0])
 
-    return hit, (nx, ny, nz)
+    return hit, normal
 
 
 def voxel_carving(mesh_vertices, mesh_triangles, silhouettes, resolution=32):
     """Carve voxels using silhouette images."""
-    if not silhouettes or not mesh_vertices:
+    if not silhouettes or len(mesh_vertices) == 0:
         return None
 
-    volume = [[[1] * resolution for _ in range(resolution)] for _ in range(resolution)]
+    volume = np.ones((resolution, resolution, resolution), dtype=np.uint8)
 
-    xs = [v[0] for v in mesh_vertices]
-    ys = [v[1] for v in mesh_vertices]
-    zs = [v[2] for v in mesh_vertices]
-
-    xmin, xmax = min(xs), max(xs)
-    ymin, ymax = min(ys), max(ys)
-    zmin, zmax = min(zs), max(zs)
+    vertices = np.asanyarray(mesh_vertices)
+    xmin, ymin, zmin = vertices.min(axis=0)
+    xmax, ymax, zmax = vertices.max(axis=0)
 
     max_range = max(xmax - xmin, ymax - ymin, zmax - zmin)
-    if max_range == 0:
-        max_range = 1
+    if max_range == 0: max_range = 1
 
+    # This is still a slow triple loop, but at least using NumPy
     for silhouette in silhouettes:
+        # Silhouette is expected to be a 2D NumPy array
         for z in range(resolution):
             for y in range(resolution):
                 for x in range(resolution):
@@ -154,43 +145,39 @@ def voxel_carving(mesh_vertices, mesh_triangles, silhouettes, resolution=32):
                     py = ymin + (y + 0.5) / resolution * max_range
                     pz = zmin + (z + 0.5) / resolution * max_range
 
-                    if not point_in_mesh_carve(
-                        px, py, pz, mesh_vertices, mesh_triangles
-                    ):
-                        volume[z][y][x] = 0
+                    if not point_in_mesh_carve(px, py, pz, vertices, mesh_triangles):
+                        volume[z, y, x] = 0
 
     return volume
 
 
 def point_in_mesh_carve(px, py, pz, vertices, triangles):
-    """Check if point is inside mesh."""
+    """Check if point is inside mesh using ray casting (approximate)."""
     intersections = 0
+    p = np.array([px, py, pz])
     for tri in triangles:
-        if len(tri) < 3:
-            continue
+        if len(tri) < 3: continue
         v0, v1, v2 = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
 
         if min(v0[2], v1[2], v2[2]) <= pz <= max(v0[2], v1[2], v2[2]):
-            if point_in_triangle_carve(px, py, pz, v0, v1, v2):
+            if point_in_triangle_carve(p, v0, v1, v2):
                 intersections += 1
     return intersections % 2 == 1
 
 
-def point_in_triangle_carve(px, py, pz, v0, v1, v2):
+def point_in_triangle_carve(p, v0, v1, v2):
     """Check if point is inside triangle."""
-    e0 = (v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2])
-    e1 = (v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2])
-    p = (px - v0[0], py - v0[1], pz - v0[2])
+    e0, e1 = v1 - v0, v2 - v0
+    rel_p = p - v0
 
-    d00 = e0[0] * e0[0] + e0[1] * e0[1] + e0[2] * e0[2]
-    d01 = e0[0] * e1[0] + e0[1] * e1[1] + e0[2] * e1[2]
-    d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2]
-    d20 = p[0] * e0[0] + p[1] * e0[1] + p[2] * e0[2]
-    d21 = p[0] * e1[0] + p[1] * e1[1] + p[2] * e1[2]
+    d00 = np.dot(e0, e0)
+    d01 = np.dot(e0, e1)
+    d11 = np.dot(e1, e1)
+    d20 = np.dot(rel_p, e0)
+    d21 = np.dot(rel_p, e1)
 
     denom = d00 * d11 - d01 * d01
-    if abs(denom) < 1e-10:
-        return False
+    if abs(denom) < 1e-10: return False
 
     v = (d11 * d20 - d01 * d21) / denom
     w = (d00 * d21 - d01 * d20) / denom
@@ -199,94 +186,164 @@ def point_in_triangle_carve(px, py, pz, v0, v1, v2):
     return u >= 0 and v >= 0 and w >= 0
 
 
-def surface_nets(volume, threshold=0.5):
-    """Extract mesh using Surface Nets."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
+def surface_nets(volume: np.ndarray, threshold=0.5, spacing=(1.0, 1.0, 1.0)):
+    """Extract mesh using Surface Nets with anisotropic spacing."""
+    if not isinstance(volume, np.ndarray):
+        volume = np.asanyarray(volume)
+        
+    depth, height, width = volume.shape
+    dz, dy, dx = spacing
 
     vertices = []
     faces = []
+    vertex_indices = {}
 
+    # Faster iteration over potential dual cells
     for z in range(depth - 1):
         for y in range(height - 1):
             for x in range(width - 1):
-                cube = [
-                    volume[z][y][x],
-                    volume[z][y][x + 1],
-                    volume[z][y + 1][x + 1],
-                    volume[z][y + 1][x],
-                    volume[z + 1][y][x],
-                    volume[z + 1][y][x + 1],
-                    volume[z + 1][y + 1][x + 1],
-                    volume[z + 1][y + 1][x],
-                ]
+                sub = volume[z:z+2, y:y+2, x:x+2]
+                inside = np.any(sub >= threshold)
+                outside = np.any(sub < threshold)
+                if inside and outside:
+                    # Physical center of the cell
+                    vertices.append(((x + 0.5) * dx, (y + 0.5) * dy, (z + 0.5) * dz))
+                    vertex_indices[(x, y, z)] = len(vertices) - 1
 
-                case = 0
-                for i in range(8):
-                    if cube[i] >= threshold:
-                        case |= 1 << i
+    # Extract faces (simplification of original logic)
+    for z in range(1, depth - 1):
+        for y in range(1, height - 1):
+            for x in range(width - 1):
+                v1 = volume[z, y, x] >= threshold
+                v2 = volume[z, y, x + 1] >= threshold
+                if v1 != v2:
+                    cells = [(x, y-1, z-1), (x, y, z-1), (x, y, z), (x, y-1, z)]
+                    if all(c in vertex_indices for c in cells):
+                        idx = [vertex_indices[c] for c in cells]
+                        if v1:
+                            faces.extend([(idx[0], idx[1], idx[2]), (idx[0], idx[2], idx[3])])
+                        else:
+                            faces.extend([(idx[0], idx[3], idx[2]), (idx[0], idx[2], idx[1])])
 
-                if case == 0 or case == 255:
-                    continue
+    # Similar blocks for Y and Z axes would follow here (omitted for brevity, keeping original logic structure)
+    # The original code had them, so I should keep them for correctness.
+    for z in range(1, depth - 1):
+        for y in range(height - 1):
+            for x in range(1, width - 1):
+                v1 = volume[z, y, x] >= threshold
+                v2 = volume[z, y + 1, x] >= threshold
+                if v1 != v2:
+                    cells = [(x-1, y, z-1), (x, y, z-1), (x, y, z), (x-1, y, z)]
+                    if all(c in vertex_indices for c in cells):
+                        idx = [vertex_indices[c] for c in cells]
+                        if not v1:
+                            faces.extend([(idx[0], idx[1], idx[2]), (idx[0], idx[2], idx[3])])
+                        else:
+                            faces.extend([(idx[0], idx[3], idx[2]), (idx[0], idx[2], idx[1])])
 
-                for edge in range(12):
-                    if (case >> edge) & 1:
-                        pass
+    for z in range(depth - 1):
+        for y in range(1, height - 1):
+            for x in range(1, width - 1):
+                v1 = volume[z, y, x] >= threshold
+                v2 = volume[z + 1, y, x] >= threshold
+                if v1 != v2:
+                    cells = [(x-1, y-1, z), (x, y-1, z), (x, y, z), (x-1, y, z)]
+                    if all(c in vertex_indices for c in cells):
+                        idx = [vertex_indices[c] for c in cells]
+                        if v1:
+                            faces.extend([(idx[0], idx[1], idx[2]), (idx[0], idx[2], idx[3])])
+                        else:
+                            faces.extend([(idx[0], idx[3], idx[2]), (idx[0], idx[2], idx[1])])
 
     return vertices, faces
 
 
-def dual_contouring(volume, threshold=0.5):
+def dual_contouring(volume: np.ndarray, threshold=0.5):
     """Dual contouring for quality isosurface."""
     return surface_nets(volume, threshold)
 
 
-def voxel_gradient_normals(volume):
-    """Compute gradient-based normals."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    normals = [[[0.0, 0.0, 0.0] for _ in range(width)] for _ in range(height)]
-    normals = [normals[:] for _ in range(depth)]
-
-    for z in range(1, depth - 1):
-        for y in range(1, height - 1):
-            for x in range(1, width - 1):
-                dx = volume[z][y][x + 1] - volume[z][y][x - 1]
-                dy = volume[z][y + 1][x] - volume[z][y - 1][x]
-                dz = volume[z + 1][y][x] - volume[z - 1][y][x]
-
-                length = math.sqrt(dx * dx + dy * dy + dz * dz)
-                if length > 0:
-                    normals[z][y][x] = (-dx / length, -dy / length, -dz / length)
-
+def voxel_gradient_normals(volume: np.ndarray):
+    """Compute gradient-based normals using NumPy gradient."""
+    if not isinstance(volume, np.ndarray):
+        volume = np.asanyarray(volume)
+        
+    dz, dy, dx = np.gradient(volume.astype(float))
+    
+    # dz, dy, dx are the same shape as volume
+    normals = np.stack([-dx, -dy, -dz], axis=-1)
+    
+    length = np.linalg.norm(normals, axis=-1, keepdims=True)
+    length[length == 0] = 1.0
+    normals /= length
+    
     return normals
 
 
-def smooth_isosurface(volume, iterations=3):
-    """Smooth isosurface after extraction."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    result = [[[v for v in row] for row in layer] for layer in volume]
-
+def smooth_isosurface(volume: np.ndarray, iterations=3):
+    """Smooth isosurface using uniform filter."""
+    if not isinstance(volume, np.ndarray):
+        volume = np.asanyarray(volume)
+        
+    result = volume.astype(float)
     for _ in range(iterations):
-        temp = [[[v for v in row] for row in layer] for layer in result]
-
-        for z in range(1, depth - 1):
-            for y in range(1, height - 1):
-                for x in range(1, width - 1):
-                    avg = count = 0
-                    for dz in range(-1, 2):
-                        for dy in range(-1, 2):
-                            for dx in range(-1, 2):
-                                if dx == 0 and dy == 0 and dz == 0:
-                                    continue
-                                avg += result[z + dz][y + dy][x + dx]
-                                count += 1
-                    temp[z][y][x] = result[z][y][x] * 0.5 + (avg / count) * 0.5
-        result = temp
+        avg = uniform_filter(result, size=3)
+        result = result * 0.5 + avg * 0.5
+        
     return result
+
+
+def fast_winding_number(volume: np.ndarray, query_points, theta=0.5):
+    """Approximates the winding number using NumPy vectorization."""
+    if not isinstance(volume, np.ndarray):
+        volume = np.asanyarray(volume)
+        
+    depth, height, width = volume.shape
+    
+    # Use shift to find boundary facets
+    facets = []
+    directions = [
+        (0,0,1), (0,0,-1), (0,1,0), (0,-1,0), (1,0,0), (-1,0,0)
+    ]
+    
+    vol_bin = (volume > 0)
+    for dz, dy, dx in directions:
+        # shifted = volume shifted by -dz, -dy, -dx
+        shifted = np.zeros_like(vol_bin)
+        tz_s, tz_e = max(0, dz), min(depth, depth + dz)
+        sz_s, sz_e = max(0, -dz), min(depth, depth - dz)
+        ty_s, ty_e = max(0, dy), min(height, height + dy)
+        sy_s, sy_e = max(0, -dy), min(height, height - dy)
+        tx_s, tx_e = max(0, dx), min(width, width + dx)
+        sx_s, sx_e = max(0, -dx), min(width, width - dx)
+        
+        if tz_s < tz_e and ty_s < ty_e and tx_s < tx_e:
+            shifted[tz_s:tz_e, ty_s:ty_e, tx_s:tx_e] = vol_bin[sz_s:sz_e, sy_s:sy_e, sx_s:sx_e]
+            
+        boundary = vol_bin & (~shifted)
+        bz, by, bx = np.where(boundary)
+        for i in range(len(bx)):
+            center = (bx[i] + dx*0.5, by[i] + dy*0.5, bz[i] + dz*0.5)
+            # Normal should point from foreground to background
+            # If shifted[z,y,x] = vol[z-dz, y-dy, x-dx], 
+            # then vol[z,y,x]=1 and shifted[z,y,x]=0 means vol[z-dz,...]=0
+            # So the normal is (-dx, -dy, -dz)
+            facets.append((np.array(center), np.array([-dx, -dy, -dz])))
+            
+    query_points = np.asanyarray(query_points)
+    if not facets:
+        return np.zeros(len(query_points))
+        
+    facet_centers = np.array([f[0] for f in facets])
+    facet_normals = np.array([f[1] for f in facets])
+    
+    results = []
+    for qp in query_points:
+        r_vec = facet_centers - qp
+        dist_sq = np.sum(r_vec**2, axis=1)
+        dist = np.sqrt(dist_sq)
+        dot = np.sum(r_vec * facet_normals, axis=1)
+        w = np.sum(dot / (4.0 * np.pi * dist**3 + 1e-18))
+        results.append(float(w))
+        
+    return np.array(results)

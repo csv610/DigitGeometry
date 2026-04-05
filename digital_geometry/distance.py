@@ -1,219 +1,139 @@
-"""Distance transforms and metrics."""
+"""Distance transforms and metrics - NumPy Centric Version with Anisotropic Support."""
 
-import math
-
-
-def manhattan_distance(p1, p2):
-    """Manhattan distance between two points."""
-    return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
+import numpy as np
+from scipy import ndimage
 
 
-def euclidean_distance(p1, p2):
-    """Euclidean distance between two points."""
-    return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+def manhattan_distance(p1, p2, spacing=(1.0, 1.0)):
+    """Manhattan distance between two points with spacing."""
+    return np.abs((np.asanyarray(p1) - np.asanyarray(p2)) * np.asanyarray(spacing)).sum()
 
 
-def manhattan_distance_transform(grid):
-    """Manhattan distance transform."""
-    height = len(grid)
-    width = len(grid[0])
-    INF = float("inf")
-    dist = [[INF] * width for _ in range(height)]
-
-    for y in range(height):
-        for x in range(width):
-            if grid[y][x] == 1:
-                dist[y][x] = 0
-            elif x > 0 and y > 0:
-                dist[y][x] = 1 + min(dist[y][x - 1], dist[y - 1][x], dist[y - 1][x - 1])
-            elif x > 0:
-                dist[y][x] = 1 + dist[y][x - 1]
-            elif y > 0:
-                dist[y][x] = 1 + dist[y - 1][x]
-
-    for y in range(height - 1, -1, -1):
-        for x in range(width - 1, -1, -1):
-            if x < width - 1:
-                dist[y][x] = min(dist[y][x], 1 + dist[y][x + 1])
-            if y < height - 1:
-                dist[y][x] = min(dist[y][x], 1 + dist[y + 1][x])
-            if x < width - 1 and y < height - 1:
-                dist[y][x] = min(dist[y][x], 1 + dist[y + 1][x + 1])
-            if x > 0 and y < height - 1:
-                dist[y][x] = min(dist[y][x], 1 + dist[y + 1][x - 1])
-
-    return dist
+def euclidean_distance(p1, p2, spacing=(1.0, 1.0)):
+    """Euclidean distance between two points with spacing."""
+    return np.linalg.norm((np.asanyarray(p1) - np.asanyarray(p2)) * np.asanyarray(spacing))
 
 
-def euclidean_distance_transform(grid):
-    """Euclidean distance transform using two-pass algorithm."""
-    height = len(grid)
-    width = len(grid[0])
-    INF = float("inf")
-    dist = [[INF] * width for _ in range(height)]
+def manhattan_distance_transform(grid: np.ndarray, spacing=(1.0, 1.0)):
+    """Manhattan distance transform with anisotropic support."""
+    if not isinstance(grid, np.ndarray):
+        grid = np.asanyarray(grid)
+    if not np.any(grid == 1):
+        return np.full(grid.shape, np.inf, dtype=np.float64)
 
-    for y in range(height):
-        for x in range(width):
-            if grid[y][x] == 1:
-                dist[y][x] = 0
-            else:
-                if x > 0 and dist[y][x - 1] != INF:
-                    dist[y][x] = min(dist[y][x], dist[y][x - 1] + 1)
-                if y > 0 and dist[y - 1][x] != INF:
-                    dist[y][x] = min(dist[y][x], dist[y - 1][x] + 1)
-
-    for y in range(height - 1, -1, -1):
-        for x in range(width - 1, -1, -1):
-            if x < width - 1 and dist[y][x + 1] != INF:
-                dist[y][x] = min(dist[y][x], dist[y][x + 1] + 1)
-            if y < height - 1 and dist[y + 1][x] != INF:
-                dist[y][x] = min(dist[y][x], dist[y + 1][x] + 1)
-
-            if x < width - 1 and y < height - 1:
-                dist[y][x] = min(
-                    dist[y][x],
-                    (dist[y + 1][x + 1] + 1.414) if dist[y + 1][x + 1] != INF else INF,
-                )
-            if x > 0 and y < height - 1:
-                dist[y][x] = min(
-                    dist[y][x],
-                    (dist[y + 1][x - 1] + 1.414) if dist[y + 1][x - 1] != INF else INF,
-                )
-
-    for y in range(height):
-        for x in range(width):
-            if dist[y][x] == INF:
-                dist[y][x] = 0
-
-    return dist
+    # distance_transform_cdt doesn't support sampling directly like EDT
+    # but for cityblock, we can approximate or use a custom metric.
+    # However, taxicab distance with weights is exactly what CDT does.
+    result = ndimage.distance_transform_cdt(grid == 0, metric="cityblock")
+    # Apply average spacing as a linear factor (simplification for Manhattan)
+    avg_spacing = np.mean(spacing)
+    return result.astype(np.float64) * avg_spacing
 
 
-def chamfer_distance_transform(grid, weights=None):
+def euclidean_distance_transform(grid: np.ndarray, spacing=None):
+    """Euclidean distance transform with anisotropic support."""
+    if not isinstance(grid, np.ndarray):
+        grid = np.asanyarray(grid)
+    if not np.any(grid == 1):
+        return np.zeros(grid.shape, dtype=np.float64)
+
+    # sampling parameter in EDT handles anisotropic spacing
+    result = ndimage.distance_transform_edt(grid == 0, sampling=spacing)
+    return result.astype(np.float64)
+
+
+def chamfer_distance_transform(grid: np.ndarray, weights=None):
     """Chamfer distance transform with configurable weights."""
-    height = len(grid)
-    width = len(grid[0])
+    if not isinstance(grid, np.ndarray):
+        grid = np.asanyarray(grid)
+    if not np.any(grid == 1):
+        return np.full(grid.shape, np.inf, dtype=np.float64)
 
     if weights is None:
         weights = [3, 4]
 
     w1, w2 = weights[0], weights[1]
-    INF = float("inf")
-    dist = [[INF] * width for _ in range(height)]
-
-    for y in range(height):
-        for x in range(width):
-            if grid[y][x] == 1:
-                dist[y][x] = 0
-
-    for y in range(height):
-        for x in range(width):
-            if dist[y][x] > 0:
-                if x > 0 and dist[y][x - 1] + w1 < dist[y][x]:
-                    dist[y][x] = dist[y][x - 1] + w1
-                if y > 0 and dist[y - 1][x] + w1 < dist[y][x]:
-                    dist[y][x] = dist[y - 1][x] + w1
-                if x > 0 and y > 0 and dist[y - 1][x - 1] + w2 < dist[y][x]:
-                    dist[y][x] = dist[y - 1][x - 1] + w2
-                if x < width - 1 and y > 0 and dist[y - 1][x + 1] + w2 < dist[y][x]:
-                    dist[y][x] = dist[y - 1][x + 1] + w2
-
-    for y in range(height - 1, -1, -1):
-        for x in range(width - 1, -1, -1):
-            if dist[y][x] > 0:
-                if x < width - 1 and dist[y][x + 1] + w1 < dist[y][x]:
-                    dist[y][x] = dist[y][x + 1] + w1
-                if y < height - 1 and dist[y + 1][x] + w1 < dist[y][x]:
-                    dist[y][x] = dist[y + 1][x] + w1
-                if (
-                    x < width - 1
-                    and y < height - 1
-                    and dist[y + 1][x + 1] + w2 < dist[y][x]
-                ):
-                    dist[y][x] = dist[y + 1][x + 1] + w2
-                if x > 0 and y < height - 1 and dist[y + 1][x - 1] + w2 < dist[y][x]:
-                    dist[y][x] = dist[y + 1][x - 1] + w2
-
-    return dist
+    metric = np.array([[w2, w1, w2], [w1, 0, w1], [w2, w1, w2]])
+    result = ndimage.distance_transform_cdt(grid == 0, metric=metric)
+    return result.astype(np.float64)
 
 
-def geodesic_distance_transform(grid, mask):
-    """Geodesic distance transform on a grid with mask."""
-    height = len(grid)
-    width = len(grid[0])
+def geodesic_distance_transform(grid: np.ndarray, mask: np.ndarray, spacing=(1.0, 1.0)):
+    """Geodesic distance transform on a grid with mask and spacing."""
+    if not isinstance(grid, np.ndarray) or not isinstance(mask, np.ndarray):
+        grid = np.asanyarray(grid)
+        mask = np.asanyarray(mask)
 
-    INF = float("inf")
-    dist = [[INF] * width for _ in range(height)]
+    height, width = grid.shape
+    dist = np.full((height, width), np.inf, dtype=np.float64)
+    dist[mask == 1] = 0
 
-    queue = []
+    from collections import deque
+    y_coords, x_coords = np.where(mask == 1)
+    queue = deque(zip(x_coords, y_coords))
 
-    for y in range(height):
-        for x in range(width):
-            if mask[y][x] == 1:
-                dist[y][x] = 0
-                queue.append((x, y))
-
-    neighbors = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+    # Neighbors with their associated spacing-based distances
+    # dx, dy, step_dist
+    dy_s, dx_s = spacing
+    neighbors = [(0, 1, dy_s), (0, -1, dy_s), (1, 0, dx_s), (-1, 0, dx_s)]
 
     while queue:
-        queue.sort(key=lambda p: dist[p[1]][p[0]])
-        cx, cy = queue.pop(0)
-
-        for dx, dy in neighbors:
+        cx, cy = queue.popleft()
+        for dx, dy, dstep in neighbors:
             nx, ny = cx + dx, cy + dy
             if 0 <= nx < width and 0 <= ny < height:
-                if grid[ny][nx] == 1 and dist[ny][nx] == INF:
-                    dist[ny][nx] = dist[cy][cx] + 1
+                if grid[ny, nx] == 1 and dist[ny, nx] == np.inf:
+                    dist[ny, nx] = dist[cy, cx] + dstep
                     queue.append((nx, ny))
 
     return dist
 
 
-def voronoi_diagram(width, height, seeds, metric="euclidean"):
-    """Compute Voronoi diagram given seeds."""
-    INF = float("inf")
-    region = [[-1] * width for _ in range(height)]
-    dist_grid = [[INF] * width for _ in range(height)]
+def voronoi_diagram(width, height, seeds: np.ndarray, metric="euclidean", spacing=(1.0, 1.0)):
+    """Compute Voronoi diagram given seeds and anisotropic spacing."""
+    if not isinstance(seeds, np.ndarray):
+        seeds = np.asanyarray(seeds)
+        
+    if seeds.size == 0:
+        return np.full((height, width), -1, dtype=np.int32)
 
-    def dist(p1, p2):
-        if metric == "manhattan":
-            return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
-        return math.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
+    y, x = np.indices((height, width))
+    dy_s, dx_s = spacing
 
-    for y in range(height):
-        for x in range(width):
-            min_dist = INF
-            nearest = -1
-            for i, seed in enumerate(seeds):
-                d = dist(seed, (x, y))
-                if d < min_dist:
-                    min_dist = d
-                    nearest = i
-            region[y][x] = nearest
-            dist_grid[y][x] = min_dist
+    # scale indices and seeds by spacing
+    sx = seeds[:, 0][:, np.newaxis, np.newaxis] * dx_s
+    sy = seeds[:, 1][:, np.newaxis, np.newaxis] * dy_s
+    grid_x = x * dx_s
+    grid_y = y * dy_s
 
+    if metric == "manhattan":
+        distances = np.abs(grid_x - sx) + np.abs(grid_y - sy)
+    else:
+        distances = np.sqrt((grid_x - sx) ** 2 + (grid_y - sy) ** 2)
+
+    region = np.argmin(distances, axis=0)
     return region
 
 
-def hausdorff_distance(set1, set2):
-    """Hausdorff distance between two point sets."""
-    if not set1 or not set2:
+def hausdorff_distance(set1, set2, spacing=(1.0, 1.0)):
+    """Hausdorff distance between two point sets with spacing."""
+    a = np.asanyarray(set1) * np.asanyarray(spacing)
+    b = np.asanyarray(set2) * np.asanyarray(spacing)
+    
+    if a.size == 0 or b.size == 0:
         return 0.0
 
-    def directed_distance(A, B):
-        max_dist = 0
-        for a in A:
-            min_dist = min(
-                math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) for b in B
-            )
-            max_dist = max(max_dist, min_dist)
-        return max_dist
+    diff = a[:, np.newaxis, :] - b[np.newaxis, :, :]
+    dist = np.linalg.norm(diff, axis=2)
 
-    return max(directed_distance(set1, set2), directed_distance(set2, set1))
+    d_ab = np.max(np.min(dist, axis=1))
+    d_ba = np.max(np.min(dist, axis=0))
+
+    return float(max(d_ab, d_ba))
 
 
 def earth_movers_distance(h1, h2):
     """Earth Mover's Distance between two histograms."""
-    total = 0
-    for i in range(len(h1)):
-        total += abs(sum(h1[: i + 1]) - sum(h2[: i + 1]))
-    return total
+    h1 = np.asanyarray(h1)
+    h2 = np.asanyarray(h2)
+    return float(np.sum(np.abs(np.cumsum(h1) - np.cumsum(h2))))

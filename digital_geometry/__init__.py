@@ -39,17 +39,31 @@ from digital_geometry.morphology import (
     morph_erode,
     white_tophat,
     black_tophat,
-)
-
-# Additional utils
-from digital_geometry.utils import (
-    discrete_gradient,
-    discrete_divergence,
-    discrete_laplacian_grid,
-    detect_skeleton_endpoints,
-    detect_skeleton_junctions,
-    prune_skeleton,
-    skeleton_to_graph,
+    tophat,
+    bothat,
+    morph_internal_gradient,
+    morph_external_gradient,
+    morph_gradient,
+    hit_or_miss,
+    create_cross_se,
+    create_diamond_se,
+    create_disk_se,
+    create_line_se,
+    area_opening,
+    area_closing,
+    opening_by_reconstruction,
+    closing_by_reconstruction,
+    morphological_close_holes,
+    remove_small_components,
+    Morphology,
+    apply_morphology,
+    morphological_filter,
+    remove_small_holes,
+    remove_small_regions,
+    extract_peaks,
+    extract_valleys,
+    remove_white_dots,
+    remove_black_dots,
 )
 
 # Additional utils
@@ -101,10 +115,10 @@ from digital_geometry.shape import (
 
 # 3D geometry
 from digital_geometry.geometry3d import (
-    estimate_surface_normals,
+    compute_surface_normals,
     compute_normals_cross_product,
     fit_plane_least_squares,
-    estimate_curvature_2d,
+    compute_curvature_2d,
 )
 
 # Voxel geometry - core utilities
@@ -156,31 +170,46 @@ from digital_geometry.voxel_render import (
     smooth_isosurface,
 )
 
-# Voxel geometry - remaining (kept in voxel.py for now)
-from digital_geometry.voxel import (
+# Voxel geometry - remaining (now split into submodules)
+from digital_geometry.voxel_sdf import (
     voxel_sdf_3d,
-    skeleton_3d_medial,
-    compute_voxel_moments,
-    extract_3d_contours,
     voxel_to_octree,
     octree_to_voxel,
     SparseVoxelOctree,
     build_sparse_voxel_octree,
-    VoxelNeighborLookup,
-    cut_mesh_by_plane,
-    cut_voxel_by_plane,
     VoxelEpitome,
     build_voxel_epitomes,
-    EulerOperators,
+)
+
+from digital_geometry.voxel_analysis import (
+    compute_voxel_moments,
+    VoxelNeighborLookup,
     detect_3d_corners,
     detect_3d_junctions,
-    morphological_skeleton,
+    extract_3d_contours,
+)
+
+from digital_geometry.voxel_operators import (
+    cut_mesh_by_plane,
+    cut_voxel_by_plane,
+    EulerOperators,
+)
+
+# Voxel diffusion
+from digital_geometry.voxel_diffusion import (
+    voxel_heat_diffusion,
+    voxel_anisotropic_diffusion,
+    compute_diffusion_distance,
+    compute_heat_kernel_signature,
+    voxel_curvature_diffusion,
+    diffusion_boundary_detection,
+    voxel_geodesic_diffusion,
 )
 
 # Topology
 from digital_geometry.topology import (
     count_connected_components,
-    calculate_topology,
+    compute_topology,
     compute_h0_persistence,
     compute_h1_persistence,
     compute_surface_curvatures,
@@ -202,7 +231,7 @@ from digital_geometry.curves import (
     perpendicular_distance,
     curve_shortening_flow,
     is_digitally_straight,
-    estimate_tangents,
+    compute_tangents,
     certify_dsls,
     dsls_Arithmetical_Distance,
     naive_dsls_recognition,
@@ -237,8 +266,8 @@ from digital_geometry.transforms import (
 
 # Descriptors
 from digital_geometry.descriptors import (
-    calculate_hu_moments,
-    calculate_zernike_moments,
+    compute_hu_moments,
+    compute_zernike_moments,
     fourier_descriptors,
     shape_context_descriptor,
     generalized_hough_transform,
@@ -298,6 +327,73 @@ from digital_geometry.volume_mesh import (
 
 from digital_geometry.volume_thinning import medial_axis_transform_3d
 
+# Voxel hashing - modern sparse representations
+from digital_geometry.voxel_hashing import (
+    VoxelHash,
+    MultiResolutionHash,
+    voxel_hash_from_volume,
+    volume_from_voxel_hash,
+    spatial_hash_nearest_neighbors,
+    hash_grid_raycast,
+)
+
+# Adaptive octree - dynamic refinement
+from digital_geometry.voxel_octree import (
+    AdaptiveOctree,
+    SparseOctree,
+    octree_raymarch,
+    octree_meshing,
+    build_example_octree,
+)
+
+# Neural implicit - feature volumes and SDF
+from digital_geometry.voxel_neural import (
+    FeatureVolume,
+    NeuralImplicitSDF,
+    raymarch_sdf,
+    extract_surface_mesh,
+    create_sdf_from_voxel_grid,
+    feature_volume_from_point_cloud,
+)
+
+# Semantic voxel reconstruction - multi-class scene understanding
+from digital_geometry.voxel_semantic import (
+    SemanticVoxelGrid,
+    SemanticVoxel,
+    voxelize_point_cloud_semantic,
+    grow_region_semantic,
+    semantic_connected_components,
+    compute_segmentation_metrics,
+    raycast_semantic,
+    extract_semantic_mesh,
+    create_example_semantic_scene,
+)
+
+# Voxel diffusion
+
+# Geometric Measure Theory
+from digital_geometry.geometric_measure_theory import (
+    compute_voxel_perimeter,
+    compute_voxel_surface_area,
+    compute_isoperimetric_quotient,
+    compute_minkowski_content,
+    compute_mean_curvature_voxel,
+    compute_gaussian_curvature_voxel,
+    compute_principal_curvatures,
+    compute_crofton_integral,
+    compute_support_function,
+    compute_mean_width,
+    compute_mean_curvature_flow_voxel,
+    compute_inverse_mean_curvature_flow,
+    compute_geodesic_on_voxel_surface,
+    compute_minimal_surface_voxel,
+    compute_normal_current,
+    compute_euler_characteristic,
+    compute_filling_volume,
+    compute_distance_to_measure,
+    compute_medial_axis_voxel,
+)
+
 __all__ = [
     # Raster
     "bresenham_line",
@@ -329,6 +425,17 @@ __all__ = [
     "geodesic_erosion",
     "white_tophat",
     "black_tophat",
+    "tophat",
+    "bothat",
+    "Morphology",
+    "apply_morphology",
+    "morphological_filter",
+    "remove_small_holes",
+    "remove_small_regions",
+    "extract_peaks",
+    "extract_valleys",
+    "remove_white_dots",
+    "remove_black_dots",
     # Edge detection
     "canny",
     "sobel",
@@ -357,10 +464,10 @@ __all__ = [
     "shape_extent",
     "shape_compactness",
     # 3D geometry
-    "estimate_surface_normals",
+    "compute_surface_normals",
     "compute_normals_cross_product",
     "fit_plane_least_squares",
-    "estimate_curvature_2d",
+    "compute_curvature_2d",
     # Voxel geometry
     "get_neighbors_6",
     "get_neighbors_18",
@@ -411,9 +518,66 @@ __all__ = [
     "EulerOperators",
     "detect_3d_corners",
     "detect_3d_junctions",
+    # Voxel diffusion
+    "voxel_heat_diffusion",
+    "voxel_anisotropic_diffusion",
+    "compute_diffusion_distance",
+    "compute_heat_kernel_signature",
+    "voxel_curvature_diffusion",
+    "diffusion_boundary_detection",
+    "voxel_geodesic_diffusion",
+    "SimpleVoxelDiffusion",
+    "VoxelDiffusionConfig",
+    "VoxelDiffusionModel",
+    "create_sphere_voxel",
+    "create_box_voxel",
+    "create_torus_voxel",
+    "augment_voxel_with_noise",
+    "compute_voxel_iou",
+    "voxel_to_point_cloud",
+    "LatentVoxelDiffusion",
+    "cosine_beta_schedule",
+    "linear_beta_schedule",
+    "ricci_flow_voxel",
+    "RicciFlowConfig",
+    "build_voxel_graph",
+    "compute_discrete_curvature_vertex",
+    "ricci_flow_boundary_extraction",
+    "voxel_shape_signature_ricci",
+    "simplify_voxel_shape_by_ricci",
+    "ricci_flow_smoothing_iterations",
+    "extract_voxel_slices",
+    "save_slice_as_png",
+    "extract_and_save_slices",
+    "visualize_voxel_slice",
+    "create_colored_voxel_volume",
+    "save_voxel_volume_image",
+    "extract_slices_along_direction",
+    "extract_orthogonal_slices",
+    "rotate_voxels_by_direction",
+    # Geometric Measure Theory
+    "compute_voxel_perimeter",
+    "compute_voxel_surface_area",
+    "compute_isoperimetric_quotient",
+    "compute_minkowski_content",
+    "compute_mean_curvature_voxel",
+    "compute_gaussian_curvature_voxel",
+    "compute_principal_curvatures",
+    "compute_crofton_integral",
+    "compute_support_function",
+    "compute_mean_width",
+    "compute_mean_curvature_flow_voxel",
+    "compute_inverse_mean_curvature_flow",
+    "compute_geodesic_on_voxel_surface",
+    "compute_minimal_surface_voxel",
+    "compute_normal_current",
+    "compute_euler_characteristic",
+    "compute_filling_volume",
+    "compute_distance_to_measure",
+    "compute_medial_axis_voxel",
     # Topology
     "count_connected_components",
-    "calculate_topology",
+    "compute_topology",
     "compute_h0_persistence",
     "compute_h1_persistence",
     "compute_surface_curvatures",
@@ -430,7 +594,7 @@ __all__ = [
     "perpendicular_distance",
     "curve_shortening_flow",
     "is_digitally_straight",
-    "estimate_tangents",
+    "compute_tangents",
     "certify_dsls",
     "dsls_Arithmetical_Distance",
     "naive_dsls_recognition",
@@ -456,8 +620,8 @@ __all__ = [
     "upscale_grid",
     "downscale_grid",
     # Descriptors
-    "calculate_hu_moments",
-    "calculate_zernike_moments",
+    "compute_hu_moments",
+    "compute_zernike_moments",
     "fourier_descriptors",
     "shape_context_descriptor",
     "generalized_hough_transform",
@@ -491,4 +655,34 @@ __all__ = [
     "mesh_simplification_edge_collapse",
     "active_contour_snake",
     "iterative_closest_point",
+    # Voxel hashing
+    "VoxelHash",
+    "MultiResolutionHash",
+    "voxel_hash_from_volume",
+    "volume_from_voxel_hash",
+    "spatial_hash_nearest_neighbors",
+    "hash_grid_raycast",
+    # Adaptive octree
+    "AdaptiveOctree",
+    "SparseOctree",
+    "octree_raymarch",
+    "octree_meshing",
+    "build_example_octree",
+    # Neural implicit
+    "FeatureVolume",
+    "NeuralImplicitSDF",
+    "raymarch_sdf",
+    "extract_surface_mesh",
+    "create_sdf_from_voxel_grid",
+    "feature_volume_from_point_cloud",
+    # Semantic voxel reconstruction
+    "SemanticVoxelGrid",
+    "SemanticVoxel",
+    "voxelize_point_cloud_semantic",
+    "grow_region_semantic",
+    "semantic_connected_components",
+    "compute_segmentation_metrics",
+    "raycast_semantic",
+    "extract_semantic_mesh",
+    "create_example_semantic_scene",
 ]

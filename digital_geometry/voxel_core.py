@@ -1,168 +1,79 @@
-"""Core voxel utilities."""
+"""Core voxel utilities - NumPy Centric Version."""
 
-import math
+import numpy as np
+from scipy.ndimage import label
 
-NEIGHBOR_6 = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)]
+NEIGHBOR_6 = np.array([[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]])
 
-NEIGHBOR_18 = [
-    (-1, 0, 0),
-    (1, 0, 0),
-    (0, -1, 0),
-    (0, 1, 0),
-    (0, 0, -1),
-    (0, 0, 1),
-    (-1, -1, 0),
-    (-1, 1, 0),
-    (1, -1, 0),
-    (1, 1, 0),
-    (-1, 0, -1),
-    (-1, 0, 1),
-    (1, 0, -1),
-    (1, 0, 1),
-    (0, -1, -1),
-    (0, -1, 1),
-    (0, 1, -1),
-    (0, 1, 1),
-]
+NEIGHBOR_18 = np.array([
+    [-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1],
+    [-1, -1, 0], [-1, 1, 0], [1, -1, 0], [1, 1, 0],
+    [-1, 0, -1], [-1, 0, 1], [1, 0, -1], [1, 0, 1],
+    [0, -1, -1], [0, -1, 1], [0, 1, -1], [0, 1, 1],
+])
 
-NEIGHBOR_26 = [
-    (-1, -1, -1),
-    (-1, -1, 0),
-    (-1, -1, 1),
-    (-1, 0, -1),
-    (-1, 0, 0),
-    (-1, 0, 1),
-    (-1, 1, -1),
-    (-1, 1, 0),
-    (-1, 1, 1),
-    (0, -1, -1),
-    (0, -1, 0),
-    (0, -1, 1),
-    (0, 0, -1),
-    (0, 0, 1),
-    (0, 1, -1),
-    (0, 1, 0),
-    (0, 1, 1),
-    (1, -1, -1),
-    (1, -1, 0),
-    (1, -1, 1),
-    (1, 0, -1),
-    (1, 0, 0),
-    (1, 0, 1),
-    (1, 1, -1),
-    (1, 1, 0),
-    (1, 1, 1),
-]
+NEIGHBOR_26 = np.array([
+    [-1, -1, -1], [-1, -1, 0], [-1, -1, 1], [-1, 0, -1], [-1, 0, 0], [-1, 0, 1],
+    [-1, 1, -1], [-1, 1, 0], [-1, 1, 1], [0, -1, -1], [0, -1, 0], [0, -1, 1],
+    [0, 0, -1], [0, 0, 1], [0, 1, -1], [0, 1, 0], [0, 1, 1], [1, -1, -1],
+    [1, -1, 0], [1, -1, 1], [1, 0, -1], [1, 0, 0], [1, 0, 1], [1, 1, -1],
+    [1, 1, 0], [1, 1, 1],
+])
 
 
 def get_neighbors_6(x, y, z):
-    return [(x + dx, y + dy, z + dz) for dx, dy, dz in NEIGHBOR_6]
+    return (np.array([x, y, z]) + NEIGHBOR_6).tolist()
 
 
 def get_neighbors_18(x, y, z):
-    return [(x + dx, y + dy, z + dz) for dx, dy, dz in NEIGHBOR_18]
+    return (np.array([x, y, z]) + NEIGHBOR_18).tolist()
 
 
 def get_neighbors_26(x, y, z):
-    return [(x + dx, y + dy, z + dz) for dx, dy, dz in NEIGHBOR_26]
+    return (np.array([x, y, z]) + NEIGHBOR_26).tolist()
 
 
-def voxel_euler_number(volume):
-    """Compute Euler number (topological invariant)."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    v = e = f = 0
-
-    for z in range(depth):
-        for y in range(height):
-            for x in range(width):
-                if volume[z][y][x] == 1:
-                    v += 1
-                    for dx, dy, dz in NEIGHBOR_6:
-                        nx, ny, nz = x + dx, y + dy, z + dz
-                        if 0 <= nx < width and 0 <= ny < height and 0 <= nz < depth:
-                            if volume[nz][ny][nx] == 1:
-                                if dx > 0:
-                                    e += 1
-                                if dy > 0:
-                                    e += 1
-                                if dz > 0:
-                                    e += 1
-                    for dx, dy in [(1, 0), (0, 1), (1, 1)]:
-                        nx1, ny1 = x + dx, y + dy
-                        if 0 <= nx1 < width and 0 <= ny1 < height:
-                            if volume[z][ny1][nx1] == 1:
-                                f += 1
-
-    return v - e / 2 + f / 4
+def voxel_euler_number(volume: np.ndarray):
+    """Compute Euler number using NumPy slicing (optimized)."""
+    # V - E + F - C (Cells/Voxels)
+    # For a binary grid, we can approximate it via neighbor counts
+    # But for rigor, let's use the property that it's a sum of local contributions
+    # This is a Phase 2 Numba candidate for full rigor, but let's provide a vectorized version.
+    v = np.sum(volume == 1)
+    
+    # Edges (connections between adjacent voxels)
+    # We count connections in each axis
+    e_x = np.sum(volume[:, :, :-1] & volume[:, :, 1:])
+    e_y = np.sum(volume[:, :-1, :] & volume[:, 1:, :])
+    e_z = np.sum(volume[:-1, :, :] & volume[1:, :, :])
+    e = e_x + e_y + e_z
+    
+    # Faces (2x2 squares of voxels)
+    f_xy = np.sum(volume[:, :-1, :-1] & volume[:, 1:, :-1] & volume[:, :-1, 1:] & volume[:, 1:, 1:])
+    f_yz = np.sum(volume[:-1, :-1, :] & volume[1:, :-1, :] & volume[:-1, 1:, :] & volume[1:, 1:, :])
+    f_xz = np.sum(volume[:-1, :, :-1] & volume[1:, :, :-1] & volume[:-1, :, 1:] & volume[1:, :, 1:])
+    f = f_xy + f_yz + f_xz
+    
+    # Cells (2x2x2 cubes)
+    c = np.sum(volume[:-1, :-1, :-1] & volume[1:, :-1, :-1] & volume[:-1, 1:, :-1] & volume[1:, 1:, :-1] &
+               volume[:-1, :-1, 1:] & volume[1:, :-1, 1:] & volume[:-1, 1:, 1:] & volume[1:, 1:, 1:])
+    
+    return int(v - e + f - c)
 
 
-def voxel_connectivity_count(volume):
-    """Count connected components."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    visited = [[[False] * width for _ in range(height)] for _ in range(depth)]
-    count = 0
-
-    def dfs(x, y, z):
-        stack = [(x, y, z)]
-        while stack:
-            cx, cy, cz = stack.pop()
-            if visited[cz][cy][cx]:
-                continue
-            visited[cz][cy][cx] = True
-            for dx, dy, dz in NEIGHBOR_6:
-                nx, ny, nz = cx + dx, cy + dy, cz + dz
-                if 0 <= nx < width and 0 <= ny < height and 0 <= nz < depth:
-                    if volume[nz][ny][nx] == 1 and not visited[nz][ny][nx]:
-                        stack.append((nx, ny, nz))
-
-    for z in range(depth):
-        for y in range(height):
-            for x in range(width):
-                if volume[z][y][x] == 1 and not visited[z][y][x]:
-                    dfs(x, y, z)
-                    count += 1
-
+def voxel_connectivity_count(volume: np.ndarray):
+    """Count connected components using scipy.ndimage."""
+    _, count = label(volume)
     return count
 
 
-def voxel_coloring(volume):
-    """Color voxels to detect separation."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    colors = [[[-1] * width for _ in range(height)] for _ in range(depth)]
-    current_color = 0
-
-    def flood_fill(start_x, start_y, start_z, color):
-        stack = [(start_x, start_y, start_z)]
-        while stack:
-            x, y, z = stack.pop()
-            if not (0 <= x < width and 0 <= y < height and 0 <= z < depth):
-                continue
-            if volume[z][y][x] == 0 or colors[z][y][x] != -1:
-                continue
-            colors[z][y][x] = color
-            for dx, dy, dz in NEIGHBOR_6:
-                stack.append((x + dx, y + dy, z + dz))
-
-    for z in range(depth):
-        for y in range(height):
-            for x in range(width):
-                if volume[z][y][x] == 1 and colors[z][y][x] == -1:
-                    flood_fill(x, y, z, current_color)
-                    current_color += 1
-
-    return colors, current_color
+def voxel_coloring(volume: np.ndarray):
+    """Color voxels using scipy.ndimage labeling."""
+    colors, count = label(volume)
+    return colors, count
 
 
-def voxel_separated(volume):
+def voxel_separated(volume: np.ndarray):
     """Check if voxel volume has separate components."""
-    colors, count = voxel_coloring(volume)
+    _, count = label(volume)
     return count > 1

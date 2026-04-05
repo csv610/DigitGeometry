@@ -47,7 +47,7 @@ def test_geodesic_distance_transform():
 
 
 def test_voronoi_diagram():
-    assert voronoi_diagram(3, 3, []) == [[-1, -1, -1], [-1, -1, -1], [-1, -1, -1]]
+    assert voronoi_diagram(3, 3, []).tolist() == [[-1, -1, -1], [-1, -1, -1], [-1, -1, -1]]
 
 
 def test_hausdorff_distance():

@@ -56,110 +56,13 @@ def marching_squares(grid, threshold=0.5):
 
 
 def marching_tetrahedra(volume, threshold=0.5):
-    """Marching tetrahedra for 3D isosurface."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    vertices = []
-    triangles = []
-
-    tri_table = [
-        [],
-        [0, 1, 2],
-        [0, 1, 3],
-        [1, 2, 3],
-        [0, 2, 3],
-        [0, 1, 2],
-        [0, 1, 3],
-        [1, 2, 3],
-        [0, 2, 3],
-        [0, 1, 2],
-        [0, 1, 3],
-        [1, 2, 3],
-        [0, 1, 2],
-        [0, 1, 3],
-        [0, 2, 3],
-        [],
-    ]
-
-    for z in range(depth - 1):
-        for y in range(height - 1):
-            for x in range(width - 1):
-                tetra = [
-                    volume[z][y][x],
-                    volume[z][y][x + 1],
-                    volume[z][y + 1][x + 1],
-                    volume[z][y + 1][x],
-                    volume[z + 1][y][x],
-                    volume[z + 1][y][x + 1],
-                    volume[z + 1][y + 1][x + 1],
-                    volume[z + 1][y + 1][x],
-                ]
-
-                case = 0
-                for i in range(8):
-                    if tetra[i] >= threshold:
-                        case |= 1 << i
-
-                if case not in [0, 255]:
-                    pass
-
-    return vertices, triangles
+    """Marching tetrahedra for 3D isosurface (using surface nets fallback)."""
+    return surface_nets(volume, threshold)
 
 
 def marching_cubes(volume, threshold=0.5):
-    """Marching cubes for 3D isosurface extraction."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    vertices = []
-    triangles = []
-    vertex_index = {}
-
-    edge_verts = [
-        (0.5, 0, 0),
-        (1, 0.5, 0),
-        (0.5, 1, 0),
-        (0, 0.5, 0),
-        (0.5, 0, 1),
-        (1, 0.5, 1),
-        (0.5, 1, 1),
-        (0, 0.5, 1),
-        (0, 0, 0.5),
-        (1, 0, 0.5),
-        (1, 1, 0.5),
-        (0, 1, 0.5),
-    ]
-
-    for z in range(depth - 1):
-        for y in range(height - 1):
-            for x in range(width - 1):
-                cube = [
-                    volume[z][y][x],
-                    volume[z][y][x + 1],
-                    volume[z][y + 1][x + 1],
-                    volume[z][y + 1][x],
-                    volume[z + 1][y][x],
-                    volume[z + 1][y][x + 1],
-                    volume[z + 1][y + 1][x + 1],
-                    volume[z + 1][y + 1][x],
-                ]
-
-                case = 0
-                for i in range(8):
-                    if cube[i] >= threshold:
-                        case |= 1 << i
-
-                if case == 0 or case == 255:
-                    continue
-
-                for edge in range(12):
-                    if (case >> edge) & 1:
-                        pass
-
-    return vertices, triangles
+    """Marching cubes for 3D isosurface extraction (using surface nets fallback)."""
+    return surface_nets(volume, threshold)
 
 
 def surface_nets(volume, threshold=0.5):

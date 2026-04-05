@@ -1,78 +1,92 @@
-"""Voxel transforms and conversions."""
+"""Voxel transforms and conversions - NumPy Centric Version."""
 
-from digital_geometry.voxel_core import NEIGHBOR_6, NEIGHBOR_18, NEIGHBOR_26
+import numpy as np
+from scipy import ndimage
+from digital_geometry.voxel_core import NEIGHBOR_6
 
 
-def voxelize_triangle_mesh(vertices, triangles, resolution=32):
+def voxelize_triangle_mesh(vertices: np.ndarray, triangles: np.ndarray, resolution=32):
     """Voxelize a triangle mesh."""
-    if not vertices or not triangles:
-        return [
-            [[0] * resolution for _ in range(resolution)] for _ in range(resolution)
-        ]
+    if not isinstance(vertices, np.ndarray):
+        vertices = np.asanyarray(vertices)
+    if not isinstance(triangles, np.ndarray):
+        triangles = np.asanyarray(triangles)
 
-    xs = [v[0] for v in vertices]
-    ys = [v[1] for v in vertices]
-    zs = [v[2] for v in vertices]
+    if vertices.size == 0 or triangles.size == 0:
+        return np.zeros((resolution, resolution, resolution), dtype=np.uint8)
 
-    xmin, xmax = min(xs), max(xs)
-    ymin, ymax = min(ys), max(ys)
-    zmin, zmax = min(zs), max(zs)
+    xmin, ymin, zmin = vertices.min(axis=0)
+    xmax, ymax, zmax = vertices.max(axis=0)
 
     max_range = max(xmax - xmin, ymax - ymin, zmax - zmin)
     if max_range == 0:
         max_range = 1
 
-    volume = [[[0] * resolution for _ in range(resolution)] for _ in range(resolution)]
+    volume = np.zeros((resolution, resolution, resolution), dtype=np.uint8)
 
     for tri in triangles:
         if len(tri) < 3:
             continue
         v0, v1, v2 = vertices[tri[0]], vertices[tri[1]], vertices[tri[2]]
 
-        min_x = int(((min(v0[0], v1[0], v2[0]) - xmin) / max_range) * resolution)
-        max_x = int(((max(v0[0], v1[0], v2[0]) - xmin) / max_range) * resolution)
-        min_y = int(((min(v0[1], v1[1], v2[1]) - ymin) / max_range) * resolution)
-        max_y = int(((max(v0[1], v1[1], v2[1]) - ymin) / max_range) * resolution)
-        min_z = int(((min(v0[2], v1[2], v2[2]) - zmin) / max_range) * resolution)
-        max_z = int(((max(v0[2], v1[2], v2[2]) - zmin) / max_range) * resolution)
+        v_tri = np.stack([v0, v1, v2])
+        min_v = (((v_tri.min(axis=0) - [xmin, ymin, zmin]) / max_range) * resolution).astype(int)
+        max_v = (((v_tri.max(axis=0) - [xmin, ymin, zmin]) / max_range) * resolution).astype(int)
 
-        min_x, max_x = max(0, min_x), min(resolution - 1, max_x)
-        min_y, max_y = max(0, min_y), min(resolution - 1, max_y)
-        min_z, max_z = max(0, min_z), min(resolution - 1, max_z)
+        min_coords = np.clip(min_v, 0, resolution - 1)
+        max_coords = np.clip(max_v, 0, resolution - 1)
 
-        for z in range(min_z, max_z + 1):
-            for y in range(min_y, max_y + 1):
-                for x in range(min_x, max_x + 1):
+        for z in range(min_coords[2], max_coords[2] + 1):
+            for y in range(min_coords[1], max_coords[1] + 1):
+                for x in range(min_coords[0], max_coords[0] + 1):
                     px = xmin + (x + 0.5) / resolution * max_range
                     py = ymin + (y + 0.5) / resolution * max_range
                     pz = zmin + (z + 0.5) / resolution * max_range
                     if point_in_triangle(px, py, pz, v0, v1, v2):
-                        volume[z][y][x] = 1
+                        volume[z, y, x] = 1
 
     return volume
 
 
 def point_in_triangle(px, py, pz, v0, v1, v2):
-    """Check if point is inside triangle."""
-    e0 = (v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2])
-    e1 = (v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2])
-    p = (px - v0[0], py - v0[1], pz - v0[2])
-
-    d00 = e0[0] * e0[0] + e0[1] * e0[1] + e0[2] * e0[2]
-    d01 = e0[0] * e1[0] + e0[1] * e1[1] + e0[2] * e1[2]
-    d11 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2]
-    d20 = p[0] * e0[0] + p[1] * e0[1] + p[2] * e0[2]
-    d21 = p[0] * e1[0] + p[1] * e1[1] + p[2] * e1[2]
-
-    denom = d00 * d11 - d01 * d01
-    if abs(denom) < 1e-10:
+    """
+    Robust Edge Function predicate for voxel-triangle intersection.
+    Determines if point (px, py, pz) is near the triangle surface.
+    """
+    # 1. Project to the plane of the triangle
+    normal = np.cross(v1 - v0, v2 - v0)
+    norm_mag = np.linalg.norm(normal)
+    if norm_mag < 1e-15:
         return False
-
-    v = (d11 * d20 - d01 * d21) / denom
-    w = (d00 * d21 - d01 * d20) / denom
-    u = 1.0 - v - w
-
-    return u >= 0 and v >= 0 and w >= 0
+    unit_normal = normal / norm_mag
+    
+    # 2. Check distance from point to plane (must be within half-voxel thickness)
+    dist_to_plane = np.dot(np.array([px, py, pz]) - v0, unit_normal)
+    if abs(dist_to_plane) > 0.5: # Half-voxel thickness
+        return False
+        
+    # 3. Project 3D point and triangle to 2D (choose best axis)
+    abs_n = np.abs(unit_normal)
+    if abs_n[2] >= abs_n[0] and abs_n[2] >= abs_n[1]:
+        # Project to XY
+        p, a, b, c = (px, py), v0[:2], v1[:2], v2[:2]
+    elif abs_n[1] >= abs_n[0]:
+        # Project to XZ
+        p, a, b, c = (px, pz), v0[[0, 2]], v1[[0, 2]], v2[[0, 2]]
+    else:
+        # Project to YZ
+        p, a, b, c = (py, pz), v0[1:], v1[1:], v2[1:]
+        
+    # 4. Edge functions (2D Cross Product) - Exact sign check
+    def edge_func(p1, p2, p3):
+        return (p3[0] - p1[0]) * (p2[1] - p1[1]) - (p3[1] - p1[1]) * (p2[0] - p1[0])
+    
+    w0 = edge_func(a, b, p)
+    w1 = edge_func(b, c, p)
+    w2 = edge_func(c, a, p)
+    
+    # Check if point is on the same side of all edges
+    return (w0 >= 0 and w1 >= 0 and w2 >= 0) or (w0 <= 0 and w1 <= 0 and w2 <= 0)
 
 
 def voxelize_surface_mesh(vertices, triangles, resolution=32):
@@ -80,197 +94,89 @@ def voxelize_surface_mesh(vertices, triangles, resolution=32):
     return voxelize_triangle_mesh(vertices, triangles, resolution)
 
 
-def merge_voxels(volume, level=2):
-    """Merge voxels at given level."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    new_depth = (depth + level - 1) // level
-    new_height = (height + level - 1) // level
-    new_width = (width + level - 1) // level
-
-    result = [[[0] * new_width for _ in range(new_height)] for _ in range(new_depth)]
-
-    for z in range(new_depth):
-        for y in range(new_height):
-            for x in range(new_width):
-                for dz in range(level):
-                    for dy in range(level):
-                        for dx in range(level):
-                            sz = z * level + dz
-                            sy = y * level + dy
-                            sx = x * level + dx
-                            if sz < depth and sy < height and sx < width:
-                                if volume[sz][sy][sx] == 1:
-                                    result[z][y][x] = 1
-                                    break
-                        else:
-                            continue
-                        break
+def merge_voxels(volume: np.ndarray, level=2):
+    """Merge voxels at given level using block maximum."""
+    if not isinstance(volume, np.ndarray):
+        raise TypeError("Input 'volume' must be a numpy.ndarray")
+        
+    d, h, w = volume.shape
+    new_d, new_h, new_w = (d + level - 1) // level, (h + level - 1) // level, (w + level - 1) // level
+    
+    padded = np.zeros((new_d * level, new_h * level, new_w * level), dtype=volume.dtype)
+    padded[:d, :h, :w] = volume
+    
+    reshaped = padded.reshape(new_d, level, new_h, level, new_w, level)
+    result = reshaped.max(axis=(1, 3, 5))
+    
     return result
 
 
-def minkowski_sum_voxel(volume1, volume2):
-    """Compute Minkowski sum."""
-    d1, h1, w1 = len(volume1), len(volume1[0]), len(volume1[0][0])
-    d2, h2, w2 = len(volume2), len(volume2[0]), len(volume2[0][0])
-
-    result = [[[0] * (w1 + w2) for _ in range(h1 + h2)] for _ in range(d1 + d2)]
-
-    for z1 in range(d1):
-        for y1 in range(h1):
-            for x1 in range(w1):
-                if volume1[z1][y1][x1] == 0:
-                    continue
-                for z2 in range(d2):
-                    for y2 in range(h2):
-                        for x2 in range(w2):
-                            if volume2[z2][y2][x2] == 0:
-                                continue
-                            nx, ny, nz = x1 + x2, y1 + y2, z1 + z2
-                            if (
-                                nz < len(result)
-                                and ny < len(result[0])
-                                and nx < len(result[0][0])
-                            ):
-                                result[nz][ny][nx] = 1
-    return result
+def minkowski_sum_voxel(volume1: np.ndarray, volume2: np.ndarray):
+    """Compute Minkowski sum using convolution."""
+    from scipy.signal import convolve
+    if not isinstance(volume1, np.ndarray) or not isinstance(volume2, np.ndarray):
+        raise TypeError("Inputs must be numpy.ndarrays")
+        
+    res = convolve((volume1 > 0).astype(int), (volume2 > 0).astype(int), mode='full') > 0
+    return res.astype(np.uint8)
 
 
-def voxel_dilate_3d(volume, iterations=1):
+def voxel_dilate_3d(volume: np.ndarray, iterations=1):
     """3D morphological dilation."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    result = [[[v for v in row] for row in layer] for layer in volume]
-
-    for _ in range(iterations):
-        temp = [[[v for v in row] for row in layer] for layer in result]
-        for z in range(depth):
-            for y in range(height):
-                for x in range(width):
-                    if result[z][y][x] == 1:
-                        for dx, dy, dz in NEIGHBOR_6:
-                            nx, ny, nz = x + dx, y + dy, z + dz
-                            if 0 <= nx < width and 0 <= ny < height and 0 <= nz < depth:
-                                temp[nz][ny][nx] = 1
-        result = temp
-    return result
+    if not isinstance(volume, np.ndarray):
+        raise TypeError("Input 'volume' must be a numpy.ndarray")
+        
+    structure = np.array([
+        [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
+        [[0, 1, 0], [1, 1, 1], [0, 1, 0]],
+        [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    ], dtype=bool)
+    
+    result = ndimage.binary_dilation(volume > 0, structure=structure, iterations=iterations)
+    return result.astype(np.uint8)
 
 
-def voxel_erode_3d(volume, iterations=1):
+def voxel_erode_3d(volume: np.ndarray, iterations=1):
     """3D morphological erosion."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    result = [[[v for v in row] for row in layer] for layer in volume]
-
-    for _ in range(iterations):
-        temp = [[[v for v in row] for row in layer] for layer in result]
-        for z in range(depth):
-            for y in range(height):
-                for x in range(width):
-                    if result[z][y][x] == 1:
-                        for dx, dy, dz in NEIGHBOR_6:
-                            nx, ny, nz = x + dx, y + dy, z + dz
-                            if not (
-                                0 <= nx < width and 0 <= ny < height and 0 <= nz < depth
-                            ):
-                                temp[z][y][x] = 0
-                                break
-                            if result[nz][ny][nx] == 0:
-                                temp[z][y][x] = 0
-                                break
-        result = temp
-    return result
+    if not isinstance(volume, np.ndarray):
+        raise TypeError("Input 'volume' must be a numpy.ndarray")
+        
+    structure = np.array([
+        [[0, 0, 0], [0, 1, 0], [0, 0, 0]],
+        [[0, 1, 0], [1, 1, 1], [0, 1, 0]],
+        [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    ], dtype=bool)
+    
+    result = ndimage.binary_erosion(volume > 0, structure=structure, iterations=iterations, border_value=0)
+    return result.astype(np.uint8)
 
 
-def fill_voxel_holes(volume):
+def fill_voxel_holes(volume: np.ndarray):
     """Fill holes in voxel volume."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
-    visited = [[[False] * width for _ in range(height)] for _ in range(depth)]
-    stack = []
-
-    for x in range(width):
-        for y in range(height):
-            if volume[0][y][x] == 0:
-                stack.append((x, y, 0))
-                visited[0][y][x] = True
-            if volume[depth - 1][y][x] == 0:
-                stack.append((x, y, depth - 1))
-                visited[depth - 1][y][x] = True
-
-    for z in range(depth):
-        for x in range(width):
-            if volume[z][0][x] == 0:
-                stack.append((x, 0, z))
-                visited[z][0][x] = True
-            if volume[z][height - 1][x] == 0:
-                stack.append((x, height - 1, z))
-                visited[z][height - 1][x] = True
-        for y in range(height):
-            if volume[z][y][0] == 0:
-                stack.append((0, y, z))
-                visited[z][y][0] = True
-            if volume[z][y][width - 1] == 0:
-                stack.append((width - 1, y, z))
-                visited[z][y][width - 1] = True
-
-    while stack:
-        cx, cy, cz = stack.pop()
-        for dx, dy, dz in NEIGHBOR_6:
-            nx, ny, nz = cx + dx, cy + dy, cz + dz
-            if 0 <= nx < width and 0 <= ny < height and 0 <= nz < depth:
-                if not visited[nz][ny][nx] and volume[nz][ny][nx] == 0:
-                    visited[nz][ny][nx] = True
-                    stack.append((nx, ny, nz))
-
-    return [
-        [
-            [
-                1 if not visited[z][y][x] and volume[z][y][x] == 0 else volume[z][y][x]
-                for x in range(width)
-            ]
-            for y in range(height)
-        ]
-        for z in range(depth)
-    ]
+    if not isinstance(volume, np.ndarray):
+        raise TypeError("Input 'volume' must be a numpy.ndarray")
+        
+    result = ndimage.binary_fill_holes(volume > 0)
+    return result.astype(np.uint8)
 
 
-def voxel_pyramid(volume, levels=3):
+def voxel_pyramid(volume: np.ndarray, levels=3):
     """Build multi-resolution voxel pyramid."""
-    depth = len(volume)
-    height = len(volume[0])
-    width = len(volume[0][0])
-
+    if not isinstance(volume, np.ndarray):
+        raise TypeError("Input 'volume' must be a numpy.ndarray")
+        
     pyramid = [volume]
+    curr = volume.astype(float)
 
-    for level in range(1, levels):
-        prev = pyramid[level - 1]
-        d, h, w = len(prev), len(prev[0]), len(prev[0][0])
-        new_d, new_h, new_w = max(1, d // 2), max(1, h // 2), max(1, w // 2)
-
-        current = [
-            [[0.0 for _ in range(new_w)] for _ in range(new_h)] for _ in range(new_d)
-        ]
-
-        for z in range(new_d):
-            for y in range(new_h):
-                for x in range(new_w):
-                    sum_val = count = 0
-                    for dz in range(2):
-                        for dy in range(2):
-                            for dx in range(2):
-                                sz, sy, sx = z * 2 + dz, y * 2 + dy, x * 2 + dx
-                                if sz < d and sy < h and sx < w:
-                                    sum_val += prev[sz][sy][sx]
-                                    count += 1
-                    current[z][y][x] = sum_val / count if count > 0 else 0.0
-        pyramid.append(current)
+    for _ in range(1, levels):
+        d, h, w = curr.shape
+        if d < 2 or h < 2 or w < 2:
+            break
+        new_d, new_h, new_w = d // 2, h // 2, w // 2
+        
+        trimmed = curr[:new_d*2, :new_h*2, :new_w*2]
+        reshaped = trimmed.reshape(new_d, 2, new_h, 2, new_w, 2)
+        curr = reshaped.mean(axis=(1, 3, 5))
+        pyramid.append(curr)
+        
     return pyramid

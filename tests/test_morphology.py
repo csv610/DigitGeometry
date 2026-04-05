@@ -14,6 +14,17 @@ from digital_geometry import (
     morph_erode,
     white_tophat,
     black_tophat,
+    tophat,
+    bothat,
+    Morphology,
+    apply_morphology,
+    morphological_filter,
+    remove_small_holes,
+    remove_small_regions,
+    extract_peaks,
+    extract_valleys,
+    remove_white_dots,
+    remove_black_dots,
 )
 
 
@@ -91,3 +102,79 @@ def test_black_tophat():
     result = black_tophat(grid)
     assert len(result) == 3
     assert len(result[0]) == 3
+
+
+def test_tophat():
+    grid = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+    result = tophat(grid)
+    assert len(result) == 3
+    assert len(result[0]) == 3
+
+
+def test_bothat():
+    grid = [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+    result = bothat(grid)
+    assert len(result) == 3
+    assert len(result[0]) == 3
+
+
+def test_morphology_class():
+    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    m = Morphology(grid)
+    result = m.dilate().get()
+    assert result[1][1] == 1
+
+
+def test_morphology_chaining():
+    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    m = Morphology(grid)
+    result = m.dilate().erode().get()
+    assert result[1][1] == 1
+
+
+def test_apply_morphology():
+    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    result = apply_morphology(grid, "dilate")
+    assert result[1][1] == 1
+
+
+def test_morphological_filter():
+    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    result = morphological_filter(grid, ["dilate", "erode"])
+    assert result[1][1] == 1
+
+
+def test_remove_small_holes():
+    grid = [[1, 1, 1], [1, 0, 1], [1, 1, 1]]
+    result = remove_small_holes(grid, 2)
+    assert result[1][1] == 1
+
+
+def test_remove_small_regions():
+    grid = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+    result = remove_small_regions(grid, 5)
+    assert result[1][1] == 1
+
+
+def test_extract_peaks():
+    grid = [[0, 1, 0], [1, 2, 1], [0, 1, 0]]
+    result = extract_peaks(grid)
+    assert len(result) == 3
+
+
+def test_extract_valleys():
+    grid = [[2, 1, 2], [1, 0, 1], [2, 1, 2]]
+    result = extract_valleys(grid)
+    assert len(result) == 3
+
+
+def test_remove_white_dots():
+    grid = [[0, 0, 0], [0, 1, 0], [0, 0, 0]]
+    result = remove_white_dots(grid)
+    assert result[1][1] == 0
+
+
+def test_remove_black_dots():
+    grid = [[1, 1, 1], [1, 0, 1], [1, 1, 1]]
+    result = remove_black_dots(grid)
+    assert result[1][1] == 1
